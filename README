@@ -2,4 +2,6 @@ configuration repository like:
 
 .bashrc
 syslog-ng.conf
+.tmux.conf
+cgminer scripts
 ...
