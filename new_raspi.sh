@@ -7,7 +7,7 @@
 
 
 PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen"
-
+DEFAULT_USER="jez"
 defcmds="packages configuration addones"
 PROGNAME=$0
 URLLIST=""
@@ -141,6 +141,8 @@ user_init () {
 	git clone https://github.com/jezjestem/digitalhoryzont.git
 	git clone https://github.com/jezjestem/RaspberryPi.git
 	git clone https://github.com/jezjestem/sysadmin.git
+	my_print "Changing ownership to \"${DEFAULT_USER}\""
+	chown -R ~jez/
 }
 
 usage () {
