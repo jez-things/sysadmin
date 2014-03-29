@@ -26,28 +26,26 @@ err_print () {
 
 my_print () {
 	ptype="${1:-msg}"
-	shift 1;
-	mbuf="${1:?too few arguments}"
+	mbuf="${2:-no message}"
 	case ${ptype:?internal error} in
 		msg)
-			printf "-=> %s\n"
+			printf -- '-=> %s\n' "${mbuf}"
 			;;
 		hdr)
 			printf '==============================>'
-			printf "-=> %s\n"
+			printf -- '-=> %s\n' "${mbuf}"
 			;;
 		*)
-			err_print "$0 unknown print type"
-			# NOTREACHED
-			return 1;
+			printf -- '-> %s\n' "${@}"
+			return 0;
 	esac
 	return 0;
 }
 
 
 fetch_cmd () {
-	url={$1:?too few arguments}
-	dprint "${url}"
+	url={$1:?$0 too few arguments}
+	dprint "fetching ${url}"
 	if [ "${NOEXEC:-0}" -gt 0 ]; then
 		echo wget -q "${url}"
 	else
@@ -114,30 +112,35 @@ END
 
 extr_urllist () {
 	URLLIST=$(mktemp urllist.XXXXXXX)
-	cat <<- EOF > $ulist
+	set +C
+	cat <<- EOF > $URLLIST
 	# $(date)
 http://www.airspayce.com/mikem/bcm2835/bcm2835-1.36.tar.gz
 EOF
+	set -C
 }
 
 user_init () {
-	echo "-> Initialization of user ${1:?too few arguments}"
+	my_print "msg" "-> Initialization of user ${1:?too few arguments}"
 	if ! id jez > /dev/null 2>&1; then
 		useradd -m jez
 		passwd jez
+	else
+		my_print "User \"${DEFAULT_USER}\" already exists"
 	fi
-	mkdir -m 700 -p /home/jez/code
+	mkdir -v -m 700 -p /home/jez/code
 	cd /home/jez/code
 	extr_urllist;
 	for url in $(grep -v '^#.*' $URLLIST);
 	do
-		fetch_cmd "$url"
+		fetch_cmd "$url" |  tar  -xzvf - 
 
 	done
 	# git repositories:
 	git clone git://git.drogon.net/wiringPi
 	git clone https://github.com/jezjestem/digitalhoryzont.git
 	git clone https://github.com/jezjestem/RaspberryPi.git
+	git clone https://github.com/jezjestem/sysadmin.git
 }
 
 usage () {
@@ -165,7 +168,7 @@ do
 			config_init;
 			;;
 		user)
-			user_init;
+			user_init "jez";
 			;;
 		*)
 			usage;
