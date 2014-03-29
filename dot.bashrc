@@ -92,3 +92,5 @@ export LANG="pl_PL.UTF-8"
 export PATH="${PATH}:${HOME:?}/bin/:${HOME}/usr/bin/"
 
 set -o vi
+export EDITOR=vim
+export VISUAL=vim
