@@ -10,6 +10,11 @@
 
 fuckOS="";
 FUCKSITE="http://capsel.org/~fred/fuck/"
+#
+fu_print () {
+	echo "$@"
+	
+}
 
 guess_os () {
 	case "$(uname)" in
@@ -134,7 +139,8 @@ http_get ~/.bashrc "${fucksite}/dot.bashrc"
 http_get ~/.bash_logout "${fucksite}/dot.bash_logout"
 http_get ~/.lynxrc "${fucksite}/dot.lynxrc"
 http_get ~/.zshrc "${fucksite}/dot.zshrc"
-http_get ~/.ssh/authorized_keys "${fucksite}/Jezssh.key"
+http_get ~/ssh_key "${fucksite}/Jezssh.key"
+cat ~/ssh_key >> ~/.ssh/authorized_keys
 
 case ${fuckOS} in
 	FreeBSD)
