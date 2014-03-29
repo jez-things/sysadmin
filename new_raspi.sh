@@ -11,7 +11,7 @@ PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-d
 defcmds="packages configuration addones"
 PROGNAME=$0
 URLLIST=""
-NOEXEC=1
+NOEXEC=0
 
 dprint () {
 	# XXX double check of condition considered hardful ;p
@@ -56,7 +56,7 @@ fetch_cmd () {
 
 }
 
-get_pkgs () {
+pkg_init () {
 	for pkg in $PKG_LIST
 	do
 		if [ "${NOEXEC:-0}" -gt 0 ]; then
