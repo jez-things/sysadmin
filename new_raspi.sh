@@ -6,7 +6,7 @@
 ##
 
 
-PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen"
+PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev"
 DEFAULT_USER="jez"
 defcmds="packages configuration addones"
 PROGNAME=$0
@@ -122,26 +122,32 @@ EOF
 
 user_init () {
 	my_print "msg" "-> Initialization of user ${1:?too few arguments}"
-	if ! id jez > /dev/null 2>&1; then
-		useradd -m jez
-		passwd jez
+	if ! id ${DEFAULT_USER} > /dev/null 2>&1; then
+		useradd -m ${DEFAULT_USER}
+		passwd ${DEFAULT_USER}
 	else
 		my_print "User \"${DEFAULT_USER}\" already exists"
 	fi
-	mkdir -v -m 700 -p /home/jez/code
-	cd /home/jez/code
+	mkdir -v -m 700 -p /home/${DEFAULT_USER}/code
+	cd /home/${DEFAULT_USER}/code
 	extr_urllist;
 	for url in $(grep -v '^#.*' $URLLIST);
 	do
 		fetch_cmd "$url" |  tar  -xzvf - 
 
 	done
+	cd bcm2835-1.36/ && ./configure && make && make install && cd ..
+	
 	# git repositories:
 	git clone git://git.drogon.net/wiringPi
+	cd wiringPi && ./build && ./build install && cd ..
 	git clone https://github.com/jezjestem/digitalhoryzont.git
 	git clone https://github.com/jezjestem/RaspberryPi.git
 	git clone https://github.com/jezjestem/sysadmin.git
 	git clone git://github.com/adafruit/Adafruit-Raspberry-Pi-Python-Code.git
+	cd Adafruit-Raspberry-Pi-Python-Code/Adafruit_DHT_Driver_Python &&  python setup.py build
+	cd Adafruit-Raspberry-Pi-Python-Code/Adafruit_DHT_Driver_Python &&  python setup.py install
+	cd ..
 	my_print "Changing ownership to \"${DEFAULT_USER}\""
 	chown -R ~jez/
 }
