@@ -152,6 +152,9 @@ user_init () {
 	cd ..
 	my_print "Changing ownership to \"${new_user}\""
 	chown -R "/home/${new_user}"
+	my_print "Adding \"${new_user}\" to /etc/sudoers file"
+	printf '%s ALL=(ALL) NOPASSWD: ALL\n' "${new_user}" >> /etc/sudoers
+
 }
 
 usage () {
