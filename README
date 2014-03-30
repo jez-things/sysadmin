@@ -1,7 +1,8 @@
 configuration repository like:
 
-.bashrc
-syslog-ng.conf
-.tmux.conf
-cgminer scripts
-...
+1) Shell configuration like .bashrc .tcshrc etc. (need to brush it up a bit)
+2) Daemon configuration like syslog-ng.conf
+3) Miscellaneous configuration like: .tmux.conf
+4) Mining tools configuration/scripts and statistics 
+5) shell scripts 
+   ...
