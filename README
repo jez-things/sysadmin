@@ -1,8 +1,10 @@
 configuration repository like:
 
-1) Shell configuration like .bashrc .tcshrc etc. (need to brush it up a bit)
+1) Shell configuration like .bashrc .tcshrc etc. (need to brush it up a bit) (apart a fuck.sh script)
 2) Daemon configuration like syslog-ng.conf
 3) Miscellaneous configuration like: .tmux.conf
 4) Mining tools configuration/scripts and statistics 
 5) shell scripts 
    ...
+
+new_raspi.sh - setup script for raspberry pi (supported on rasbian de momento)
