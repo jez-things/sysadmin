@@ -6,7 +6,7 @@
 ##
 
 
-PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev"
+PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev python-serial python-daemon python-lockfile"
 DEFAULT_USER="jez"
 defcmds="packages configuration addones"
 PROGNAME=$0
@@ -121,15 +121,17 @@ EOF
 }
 
 user_init () {
+	new_user="${1:?user_init too few arguments}"
 	my_print "msg" "-> Initialization of user ${1:?too few arguments}"
-	if ! id ${DEFAULT_USER} > /dev/null 2>&1; then
-		useradd -m ${DEFAULT_USER}
-		passwd ${DEFAULT_USER}
+	if ! id "${new_user}" > /dev/null 2>&1; then
+		useradd -m ${new_user}
+		passwd ${new_user}
 	else
-		my_print "User \"${DEFAULT_USER}\" already exists"
+		my_print "User \"${new_user}\" already exists"
+		exit 3;
 	fi
-	mkdir -v -m 700 -p /home/${DEFAULT_USER}/code
-	cd /home/${DEFAULT_USER}/code
+	mkdir -v -m 700 -p /home/${new_user}/code
+	cd /home/${new_user}/code
 	extr_urllist;
 	for url in $(grep -v '^#.*' $URLLIST);
 	do
@@ -148,8 +150,8 @@ user_init () {
 	cd Adafruit-Raspberry-Pi-Python-Code/Adafruit_DHT_Driver_Python &&  python setup.py build
 	cd Adafruit-Raspberry-Pi-Python-Code/Adafruit_DHT_Driver_Python &&  python setup.py install
 	cd ..
-	my_print "Changing ownership to \"${DEFAULT_USER}\""
-	chown -R ~jez/
+	my_print "Changing ownership to \"${new_user}\""
+	chown -R "/home/${new_user}"
 }
 
 usage () {
@@ -177,7 +179,7 @@ do
 			config_init;
 			;;
 		user)
-			user_init "jez";
+			user_init "${DEFAULT_USER}";
 			;;
 		*)
 			usage;
