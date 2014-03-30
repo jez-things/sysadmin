@@ -141,6 +141,7 @@ user_init () {
 	git clone https://github.com/jezjestem/digitalhoryzont.git
 	git clone https://github.com/jezjestem/RaspberryPi.git
 	git clone https://github.com/jezjestem/sysadmin.git
+	git clone git://github.com/adafruit/Adafruit-Raspberry-Pi-Python-Code.git
 	my_print "Changing ownership to \"${DEFAULT_USER}\""
 	chown -R ~jez/
 }
