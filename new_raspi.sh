@@ -6,7 +6,7 @@
 ##
 
 
-PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev python-serial python-daemon python-lockfile"
+PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev python-serial python-daemon python-lockfile i2c-tools python-smbus"
 DEFAULT_USER="jez"
 defcmds="packages configuration addones"
 PROGNAME=$0
@@ -154,6 +154,8 @@ user_init () {
 	chown -R "/home/${new_user}"
 	my_print "Adding \"${new_user}\" to /etc/sudoers file"
 	printf '%s ALL=(ALL) NOPASSWD: ALL\n' "${new_user}" >> /etc/sudoers
+	my_print "Setting kernel modules:"
+	printf "w1-gpio\nw1-therm\n\n" >> /etc/modules
 
 }
 
