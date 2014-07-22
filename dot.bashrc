@@ -69,6 +69,10 @@ set -o vi
 # ~/.bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
+alias ls="/bin/ls -tF"
+alias ll="/bin/ls -tFl"
+alias la="/bin/ls -tFa"
+alias sockstat="lsof -i4 -l -n -P"
 if [ -f ~/.bash_aliases ]; then
     . ~/.bash_aliases
 fi
@@ -94,3 +98,4 @@ export PATH="${PATH}:${HOME:?}/bin/:${HOME}/usr/bin/"
 set -o vi
 export EDITOR=vim
 export VISUAL=vim
+
