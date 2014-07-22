@@ -1,0 +1,10 @@
+[Unit]
+Description=MQTT notifier
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mqttnotify.sh start
+StandardOutput=syslog
+
+[Install]
+WantedBy=multi-user.target
