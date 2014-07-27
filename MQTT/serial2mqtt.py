@@ -17,14 +17,57 @@ import getopt
 import serial
 
 import mosquitto
-import rrdtool
 
 from socket import gethostname;
 
 VERBOSE_MODE=False
 POOL_TIMEOUT=1
 S_PORT_PATH="/dev/ttyACM0"
-S_PORT_BAUDRATE="115200"
+S_PORT_BAUDRATE=115200
+
+class ArduinoMQTT:
+	msgbuf = [];
+	def __init__(self, serial_port_path="/dev/ttyACM0", bd=115200, tmout=1):
+		self.serial_port_path = serial_port_path;
+		self.VERBOSE_MODE = True;
+		self.serial_port = serial.Serial();
+		sp = self.serial_port;
+		sp.port = serial_port_path;
+		sp.baudrate = bd;
+		sp.timeout = tmout;
+		self.MQTT_conn = False;
+		return (None);
+
+	def init_serial(self):
+    		try:
+        		self.serial_port.open()
+    		except:
+			self.vprint("Failed to open serial port %s" % (self.serial_port_path));
+			self.msgbuf.append("Failed to open serial port");
+        		sys.exit(3);
+
+    		try:
+        		self.serial_port.flushOutput()
+    		except:
+			self.vprint("Failed to flush  serial port");
+			self.msgbuf.append("Failed to flush serial port");
+        		sys.exit(3);
+    		return self.serial_port;
+	def flush_msgbuf(self):
+		cnt=0;
+		for ln in self.msgbuf:
+			print("mbuf: %s" %(ln));
+			cnt+=1;
+		return (cnt);
+	def MQTT_init(self, mqtt_user, mqtt_pass):
+		self.hostname = socket.gethostname();
+		self.MQTT_conn = mosquitto.Mosquitto(self.hostname)
+    		self.MQTT_conn.username_pw_set(mqtt_user, mqtt_pass);
+		return (self.MQTT_conn);
+	def vprint(self, line):
+    		if self.VERBOSE_MODE > 0:
+        		print("> %s" %(line));
+
 
 class mqttException(Exception):
     def __init__(self, topic, msg):
@@ -33,10 +76,6 @@ class mqttException(Exception):
     def __str__(self):
         return (self.topic);
 
-def ifvprint(line):
-    global VERBOSE_MODE;
-    if VERBOSE_MODE > 0:
-        print("> %s" %(line[:-1]));
 
 def on_publish(mosq, obj, mid):
     print("Message "+str(mid)+" published.");
@@ -46,10 +85,9 @@ def on_connect(mosq, obj, rc):
         print("Connected successfully");
 
 
-def mqtt_init(srvaddr="127.0.0.1", tmout=-1):
-    name=gethostname();
-    mos = mosquitto.Mosquitto(name)
-    mos.username_pw_set("jez", "cyk");
+def mqtt_init(ar2mqtt, srvaddr="127.0.0.1"):
+    mos = ar2mqtt.MQTT_init("jez", "cyk");
+    tmout = armqtt.timeout;
     mos.on_publish = on_publish;
     mos.on_connect = on_connect;
     try:
@@ -61,7 +99,6 @@ def mqtt_init(srvaddr="127.0.0.1", tmout=-1):
     return (mos);
 
 def mqtt_bcast(mqtt_conn, topic, msg):
-    ifvprint("\nSending \"%s\" to \"%s\"\n" % (msg, topic));
     try:
         mqtt_conn.publish(topic, msg, 0);
     except Exception as e:
@@ -73,16 +110,10 @@ def usage():
     print("usage: serial2mqtt -s [serial_path] -b [baudrate] -vh");
     sys.exit(64);
 
-def init_serial(sp_path, sp_baudrate):
-    serial_port = serial.Serial();
-    serial_port.port = sp_path;
-    serial_port.baudrate = sp_baudrate;
-    serial_port.timeout=0;
-    return serial_port;
 
 
 def proc_line(mqtt_conn, lbuf):
-    ifvprint("Processing line: "+lbuf[:-2]);
+    #ifvprint("Processing line: "+lbuf[:-2]);
     lbufclean = filter(lambda x: x in string.printable, lbuf)
     for lf in lbufclean.split(" "):
         #print("msg \"%s\""%(lf));
@@ -107,22 +138,10 @@ def printable(istr):
         return ''.join(char for char in istr if isprint(char))
 
 
-def read_loop(s_port, pool_timeout=1):
-    try:
-        s_port.open()
-    except:
-        print("Failed to open serial port");
-        sys.exit(3);
-
-    try:
-        s_port.flushOutput()
-    except:
-        print("Failed to flush serial port");
-        sys.exit(3);
-    ch = '';
-    tempbuf = "";
+def init_loop(ar_mqtt):
+    s_port = ar_mqtt.init_serial();
     DO_LOOP = True;
-    MQTT_CONN = mqtt_init("172.17.17.9", -1);
+    MQTT_CONN = mqtt_init(ar_mqtt, "172.17.17.9");
     line = ""
     while DO_LOOP:
         try:
@@ -134,9 +153,9 @@ def read_loop(s_port, pool_timeout=1):
         else: 
             line = printable(lbuf)
             if len(line[:-2]) > 40:
-                ifvprint("Processing message: \"%s\"" % (line[:-2]));
+                ar_mqtt.vprint("Processing message: \"%s\"" % (line[:-2]));
                 proc_line(MQTT_CONN, line[:-2]);
-        time.sleep(int(pool_timeout));
+        time.sleep(ar_mqtt.timeout);
     print("Well done! End of work");
 #
 ############################################################################
@@ -144,10 +163,7 @@ def read_loop(s_port, pool_timeout=1):
 ###
 #
 def main():
-    global VERBOSE_MODE;
-    global S_PORT_BAUDRATE;
-    global S_PORT_PATH;
-    global POOL_TIMEOUT;
+    ar_mqtt = ArduinoMQTT();
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hs:b:t:v", ["help", "serialpath=","baudrate=","timeout="])
@@ -156,25 +172,24 @@ def main():
         print str(err) # will print something like "option -a not recognized"
         usage()
         sys.exit(2)
-    VERBOSE_MODE = False
+    ar_mqtt.VERBOSE_MODE = False
     for o, a in opts:
         if o == "-v":
-            VERBOSE_MODE = True
+            ar_mqtt.VERBOSE_MODE = True
         elif o in ("-h", "--help"):
             usage()
             sys.exit()
         elif o in ("-s", "--serialpath"):
-            S_PORT_PATH = a
+            ar_mqtt.serial_port_path = a
         elif o in ("-b", "--baudrate"):
-            S_PORT_BAUDRATE = a
+            ar_mqtt.baudrate = int(a)
         elif o in ("-t", "--timeout"):
-            POOL_TIMEOUT = a;
+            ar_mqtt.timeout = int(a);
         else:
             print("ERROR: Unhandled option");
             sys.exit(9);
     # ...
-    sprt = init_serial(S_PORT_PATH, S_PORT_BAUDRATE)
-    read_loop(sprt, POOL_TIMEOUT);
+    init_loop(ar_mqtt);
 
 if __name__ == "__main__":
     main()
