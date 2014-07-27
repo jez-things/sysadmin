@@ -1,0 +1,50 @@
+#! /bin/sh
+### BEGIN INIT INFO
+
+# Provides:          mqtt-notify
+
+# Required-Start:    $remote_fs $syslog $mosquitto
+
+# Required-Stop:     $remote_fs $syslog $mosquitto
+
+# Default-Start:     2 3 4 5
+
+# Default-Stop:      0 1 6
+
+# Short-Description: Start daemon at boot time
+
+# Description:       MQTT notification about RC events
+
+### END INIT INFO
+
+# /etc/init.d/mqtt-notify
+#
+
+# Some things that run always
+touch /var/lock/mqtt-notify.lock
+mqtt_pub=/usr/bin/mosquitto_pub
+# Carry out specific functions when asked to by the system
+case "$1" in
+  start)
+    echo "Starting script MQTT notifier "
+    $mqtt_pub -h 172.17.17.9 -t "system/$(hostname -s)/status" -u bofh -P tania.muzyka -m 'BOOTUP' -q 1
+    ;;
+  stop)
+    $mqtt_pub -h 172.17.17.9 -t "system/$(hostname -s)/status" -u bofh -P tania.muzyka -m 'SHUTDOWN' -q 1
+    echo "Stopping script mqtt-notify"
+    rm /var/lock/mqtt-notify.lock
+    ;;
+    status)
+
+    $mqtt_pub -h 172.17.17.9 -t "test/$(hostname -s)/test" -u bofh -P tania.muzyka -m 'test' -q 0
+    [ $? -eq 0 ] && echo "test ok"
+    rm /var/lock/mqtt-notify.lock
+    ;;
+  *)
+    echo "Usage: /etc/init.d/mqtt-notify {start|stop|status}"
+    exit 1
+    ;;
+esac
+
+exit 0
+
