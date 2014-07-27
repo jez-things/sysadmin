@@ -17,6 +17,7 @@ import getopt
 import serial
 
 import mosquitto
+import rrdtool
 
 from socket import gethostname;
 
@@ -25,15 +26,32 @@ POOL_TIMEOUT=1
 S_PORT_PATH="/dev/ttyACM0"
 S_PORT_BAUDRATE="115200"
 
+class mqttException(Exception):
+    def __init__(self, topic, msg):
+        self.topic = topic;
+        self.msg = msg;
+    def __str__(self):
+        return (self.topic);
+
 def ifvprint(line):
     global VERBOSE_MODE;
     if VERBOSE_MODE > 0:
         print("> %s" %(line[:-1]));
 
+def on_publish(mosq, obj, mid):
+    print("Message "+str(mid)+" published.");
+
+def on_connect(mosq, obj, rc):
+    if rc == 0:
+        print("Connected successfully");
+
+
 def mqtt_init(srvaddr="127.0.0.1", tmout=-1):
     name=gethostname();
     mos = mosquitto.Mosquitto(name)
     mos.username_pw_set("jez", "cyk");
+    mos.on_publish = on_publish;
+    mos.on_connect = on_connect;
     try:
         mos.connect(srvaddr);
     except:
@@ -46,8 +64,10 @@ def mqtt_bcast(mqtt_conn, topic, msg):
     ifvprint("\nSending \"%s\" to \"%s\"\n" % (msg, topic));
     try:
         mqtt_conn.publish(topic, msg, 0);
-    except:
-        print("Failed to send msg to %s" %(topic));
+    except Exception as e:
+        print("ERROR: Failed to send msg to %s %s" %(topic, e));
+        raise mqttException(topic, e);
+        return False;
 
 def usage():
     print("usage: serial2mqtt -s [serial_path] -b [baudrate] -vh");
@@ -70,13 +90,13 @@ def proc_line(mqtt_conn, lbuf):
         if len(val) == 2:
             nam=val[0];
             v=val[1];
-            ifvprint("> \"%s\"\t\"%s\"" % (nam, v));
+            #ifvprint("DEBUG: \"%s\"\t\"%s\"" % (nam, v));
             if nam == "tempC":
-                mqtt_bcast(mqtt_conn, "environment/temperature", v)
+                mqtt_bcast(mqtt_conn, "environment/dht11/temperature", v)
             elif nam == "hum":
-                mqtt_bcast(mqtt_conn, "environment/humidity", v)
+                mqtt_bcast(mqtt_conn, "environment/dht11/humidity", v)
             elif nam == "dewpointC":
-                mqtt_bcast(mqtt_conn, "environment/devpoint", v)
+                mqtt_bcast(mqtt_conn, "environment/dht11/devpoint", v)
             #mqtt_conn.loop(timeout=10);
         else:
             print("ERROR: Received incomplette message \"%s\" len=%s"%(lf[:-2], len(val[:-2])));
@@ -102,7 +122,6 @@ def read_loop(s_port, pool_timeout=1):
     ch = '';
     tempbuf = "";
     DO_LOOP = True;
-    ifvprint("Initialization of connection with 172.17.17.9");
     MQTT_CONN = mqtt_init("172.17.17.9", -1);
     line = ""
     while DO_LOOP:
