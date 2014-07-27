@@ -4,6 +4,7 @@ Description=MQTT notifier
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/mqttnotify.sh start
+ExecStop=/usr/bin/mqttnotify.sh stop
 StandardOutput=syslog
 
 [Install]
