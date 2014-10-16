@@ -6,7 +6,7 @@
 ##
 
 
-PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev python-serial python-daemon python-lockfile i2c-tools python-smbus"
+PKG_LIST="vim lynx openvpn munin-node lsof tcpdump libmosquitto0 libmosquitto0-dev libmosquittopp0-dev mosquitto mosquitto-clients python-mosquitto syslog-ng tmux screen python-dev python-serial python-daemon python-lockfile i2c-tools python-smbus rcs"
 DEFAULT_USER="jez"
 defcmds="packages configuration addones"
 PROGNAME=$0

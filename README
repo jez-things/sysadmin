@@ -8,3 +8,4 @@ configuration repository like:
    ...
 
 new_raspi.sh - setup script for raspberry pi (supported on rasbian de momento)
+fuck.sh - setting user environment up
