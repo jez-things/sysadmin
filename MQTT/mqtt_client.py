@@ -10,7 +10,6 @@ import traceback
 
 import httplib
 import string
-import daemon
 import getopt
 
 
@@ -51,10 +50,10 @@ class mqttException(Exception):
         return (self.topic);
 
 
-def on_publish(mosq, mid):
+def on_publish(mosq, obj, mid):
     print("Message "+str(mid)+" published.");
 
-def on_connect(mosq, rc):
+def on_connect(mosq, obj, rc):
     if rc == 0:
         print("Connected successfully");
 
@@ -89,7 +88,7 @@ def read_temp_raw(device_file):
 	try:
 		f = open(device_file, 'r')
 	except IOError as e:
-		logit("Couldn't read device file in path \"%s\":%s" % (device_file, e.strerror))
+		print("Couldn't read device file in path \"%s\":%s" % (device_file, e.strerror))
 		return None;
 	else:
 		lines = f.readlines()
@@ -112,21 +111,41 @@ def read_temp(device_file):
 			try:
 				temp_c = float(temp_string) / 1000.0
 			except Exception:
-				logit("conversion failure!")
+				print("conversion failure!")
 			return temp_c
 		else:
 			return "failure"
 
 
+def get_pcf8591p(pin=0):
+	f = os.popen("/usr/local/bin/pcf8591p %d" % (pin));
+	vstr = f.read()[:-1]
+	f.close();
+	#vintc = int(vstr);
+	return (vstr);
+
+def get_dht11(binpath="/usr/local/bin/Adafruit_DHT", pin=25):
+        dht11str=""
+        while len(dht11str) != 2:
+                try:
+                        f = os.popen("%s 11 %d" %(binpath, pin));
+                        dht11str = f.read()[:-1]
+                        f.close();
+                except:
+                        print "failed to get data from dht11"
+        return (int(dht11str));
 
 
 def get_data():
     return [1];
 
 def send_data(mqttconn, datbuf = []):
-    
+    v_light = get_pcf8591p()
+    v_humidity = get_dht11()
     t_board = read_temp('/sys/bus/w1/devices/28-0000055a8be7/w1_slave');
     mqtt_bcast(mqttconn, "/environment/temperature/board", str(t_board));
+    mqtt_bcast(mqttconn, "/environment/humidity/board", str(v_humidity));
+    mqtt_bcast(mqttconn, "/environment/light/general", v_light);
     return 0;
 
 def init_loop(ar_mqtt):
