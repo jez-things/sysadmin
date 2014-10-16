@@ -17,21 +17,21 @@ import getopt
 import serial
 
 import mosquitto
-import rrdtool
+#import rrdtool
 
 from socket import gethostname;
-from rrdtool import update as rrd_update
+#from rrdtool import update as rrd_update
 
 VERBOSE_MODE=False
 POOL_TIMEOUT=1
 brecv = 0;
 bsent = 0;
 
-def on_subscribe(mosq, obj, mid, qos_list):
+def on_subscribe(mosq, obj, mid):
         print("Subscribe with mid "+str(mid)+" received.")
 
 
-def on_connect(mosq, obj, rc):
+def on_connect(mosq, obj, b, rc):
     if rc == 0:
         print("Connected successfully.")
 
@@ -55,7 +55,7 @@ def update_rrd_db(rrdpath):
 
 
 
-def on_message(mosq, obj, msg):
+def on_message(mosq, obj, b, msg):
     global brecv, bsent;
     if msg.topic == "$SYS/broker/bytes/received":
         brecv = float(msg.payload);
@@ -116,7 +116,7 @@ def mqtt_recvloop(mos):
 
 def main():
     global VERBOSE_MODE;
-    mos = mqtt_init('172.17.17.9', '30');
+    mos = mqtt_init('172.17.17.9', 30);
     mqtt_sub(mos);
     mqtt_recvloop(mos);
     print("bye");
