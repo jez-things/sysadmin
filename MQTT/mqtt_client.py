@@ -61,7 +61,7 @@ def on_connect(mosq, obj, rc):
 def mqtt_init(ar2mqtt, srvaddr="127.0.0.1"):
     mos = ar2mqtt.MQTT_init("jez", "cyk");
     tmout = ar2mqtt.timeout;
-    mos.on_publish = on_publish;
+    #mos.on_publish = on_publish;
     mos.on_connect = on_connect;
     try:
         mos.connect(srvaddr);
