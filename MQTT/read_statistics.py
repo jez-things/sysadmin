@@ -10,53 +10,159 @@ import random
 import sqlite3
 import datetime
 
-class ProbeDateTime:
-    dattim = None;
-    epoch = 0;
-    dattim_str = ""
-    dattim_fmt = '%H:%M:%S  %d-%b-%Y(%Z)'
+
+class ProbeFault(Exception):
+    em = {201: "Database connection problem", \
+          102: "Programming error", \
+          103: "Incorrect data given", \
+          104: "Incorrect data received", \
+          202: "Database data corrupted" }
+
+class ProbeIOerror(ProbeFault):
     pass
 
+class ProbeDateTime:
+    timdat = None;
+    epoch = 0;
+    timdat_str = ""
+    timdat_fmt = '%H:%M:%S  %d-%b-%Y(%Z)'
+
+    def __init__(self, epocht, fmt=None):
+        self.epoch = epocht;
+        self.timdat = time.localtime(epocht);
+        if fmt == None:
+            fmt = self.timdat_fmt;
+        self.timdat_str = time.strftime(fmt, self.timdat);
+
+    def __str__(self):
+        return (self.timdat_str);
+
 def epoch2str(estr, fmt=None):
-    e2str = ProbeDateTime()
-    e2str.dattim = time.localtime(int(estr))
-    e2str.epoch = int(estr)
-    if fmt == None:
-        fmt = e2str.dattim_fmt;
-    rstr = e2str.dattim_str = time.strftime(fmt, e2str.dattim);
-    return (rstr)
+    return (ProbeDateTime(int(estr), fmt))
+    #return (rstr)
 
 
 class SimpleProbe:
-    sp_pdata = 0.00;
-    sp_epocht = 0;
-    sp_timdat_str = ""
-    sp_timdat_fmt = '%H:%M:%S %d-%m-%Y'
-    sp_cnt = 0;
+    sp_pdata = 0.00; # Data 
+    sp_timdat = None # Class for expressing date and time
+    sp_cnt = 0;      # counter
 
     def __init__(self, pdata, epocht):
+        self.sp_timdat = ProbeDateTime(epocht);
         self.sp_pdata = pdata;
-        self.sp_epocht = epocht;
-        self.sp_timdat_str = epoch2str(ftm);
         self.sp_cnt+=1;
 
     def __str__(self):
-        retstr = "%f %s" %(self.sp_pdata, self.sp_timdat_str);
+        retstr = "%d) %f %s" %(self.sp_cnt, self.sp_pdata, self.sp_timdat);
         return (retstr)
 
 
-class LightProbe(SimpleProbe):
-    lp_sensors = {};
-    lp_cur_pos = "";
-    lp_cnt = 0;
+class ProbeSet:
+    ps_type = ""
+    ps_sensorset = {};
+    ps_cur_sensor = "";
+    ps_sensor_names = [];
 
-    def __init__(self, pos):
-        self.lp_cur_pos = pos;
-        self.lp_sensors = {};
+    def __init__(self, ptype, snames):
+        self.ps_ptype = ptype;
+        self.ps_sensor_names = snames;
+        self.ps_sensorset[ptype] = {};
+        for sn in snames:
+            self.ps_sensorset[ptype][sn] = [];
+            self.ps_cur_sensor = sn;
 
-    def add(self, pos, val, epocht):
-        dset = self.sensors[pos];
-        dset.append(SimpleProbe(
+    def add_sensor(self, sname, sdata):
+        """
+        """
+        datas = False
+        # lookup name of the sensor
+        hit = False
+        for snam in self.ps_sensor_names:
+            if sname == snam:
+                hit = True
+                break;
+        if hit != True:
+            raise(ProbeFault(104));
+            return None;
+
+        self.ps_cur_sensor = sname;
+        datas = self.ps_sensorset[self.ps_type][sname].append(sdata);
+        self.ps_cnt += 1;
+        return (datas);
+
+    
+    
+class TempSensor(ProbeSet):
+    TS_lastrec = None
+    TS_sensors = None;
+    TS_cnt = 0;
+
+    def __init__(self):
+        self.TS_lastrec = None;
+        self.TS_sensors = ProbeSet("TEMPERATURE", "board", "outside");
+        self.TS_cnt = 0;
+        self.TS_db_rows = 0;
+
+    def add_probe(self, temp, epocht, s_name):
+        """
+            Add entry
+            returns probe
+        """
+        Tsensor = self.TS_sensors.add_sensor(s_name, SimpleProbe(temp, epocht));
+        self.TS_cnt+=1
+        return (Tsensor);
+
+    def proc_db_row(self, row):
+        """
+            Function to process DB entries to internal structures
+        """
+        temp = 0.0; epocht = 0; sensor = ""; probe = None;
+        self.TS_db_rows+=1;
+        if (len(row) == 3):
+            temp = float(row[2]);
+            sensor = row[1];
+            epocht = int(row[0]);
+            probe = self.add_probe(temp, epocht, sensor);
+        else:
+            print("!!!> Incorrect database schema! Expected 3 entries found %d" %(len(row)));
+            raise ProbeFault(103);
+        return(probe);
+
+
+
+class LightSensor(ProbeSet):
+    LP_sensors = None;
+    LP_cnt = 0;
+
+    def __init__(self, sensor):
+        self.LP_sensors = ProbeSet("LIGHT", ['generic']);
+
+
+    def add_probe(self, temp, epocht, s_name):
+        """
+            Add entry
+            returns probe
+        """
+        Tsensor = self.TS_sensors.add_sensor(s_name, SimpleProbe(temp, epocht));
+        self.TS_cnt+=1
+        return (Tsensor);
+
+    def proc_db_row(self, row):
+        """
+            Function to process DB entries to internal structures
+        """
+        temp = 0.0; epocht = 0; sensor = ""; probe = None;
+        self.TS_db_rows+=1;
+        if (len(row) == 3):
+            temp = float(row[2]);
+            sensor = row[1];
+            epocht = int(row[0]);
+            probe = self.add_probe(temp, epocht, sensor);
+        else:
+            print("!!!> Incorrect database schema! Expected 3 entries found %d" %(len(row)));
+            raise ProbeFault(103);
+        return(probe);
+
 
 
 class TempProbe(SimpleProbe):
@@ -64,14 +170,14 @@ class TempProbe(SimpleProbe):
         class for temperature probes
     """
     tp_cnt = 0;
-    tp_thermometrs = {};
-    tp_cur_pos = "board"
+    tp_sensors = {};
+    tp_cur_sensor = "board"
     tp_id = 0;
     
-    def __init__(self, pos):
-        self.tp_thermometrs[pos] = [];
+    def __init__(self, sensor):
+        self.tp_sensors[sensor] = [];
         self.tp_cnt = 0;
-        self.tp_cur_pos = "board";
+        self.tp_cur_sensor = "board";
         self.iter_index = 0;
         
     def __iter__(self):
@@ -82,36 +188,43 @@ class TempProbe(SimpleProbe):
         if self.iter_index == 0:
             raise StopIteration
         self.iter_index = self.iter_index - 1
-        return (self.tp_thermometrs[self.tp_cur_pos][self.iter_index])
+        return (self.tp_sensors[self.tp_cur_sensor][self.iter_index])
 
-    def add_probe(self, temp, ftm, pos):
-        prob = SimpleProbe(temp, ftm)
+    def add_probe(self, temp, epocht, sensor):
+        """
+            Add entry
+        """
+        prob = SimpleProbe(temp, epocht)
         self.tp_cnt+=1
         self.tp_id=self.tp_cnt;
-        self.tp_thermometrs[pos].append(prob)
+        self.tp_sensors[sensor].append(prob)
         return (prob);
 
     def proc_db(self, row):
+        """
+            Function to process DB entries to internal structures
+        """
         temp = 0.0;
         epocht = 0;
-        pos = "";
+        sensor = "";
         ret = None;
         if (len(row) == 3):
             temp = float(row[2]);
-            pos = row[1];
+            sensor = row[1];
             epocht = int(row[0]);
-            if pos != "board" and pos != "outside":
+            if sensor != "board" and sensor != "outside":
                 print("!!!> Unknown entry: %s" %(row));
-            ret = self.add_probe(temp, epocht, pos);
+                raise ProbeFault(103);
+            ret = self.add_probe(temp, epocht, sensor);
         else:
             print("!!!> Incorrect database schema! Expected 3 entries found %d" %(len(row)));
+            raise ProbeFault(103);
         return(ret);
 
         
 
-class Temperature(TempProbe):
-    t_sensors = {};
-    t_sens_cnt = 0;
+#class HumidityProbe(SimpleProbe):
+
 
 
 
@@ -127,49 +240,25 @@ def read_db(dbpath):
         print("!!!> Failed to connect to DB");
         sys.exit(3);
 
-
     temp_probes = [TempProbe('board'), TempProbe('outside'), TempProbe('bed')]
     # First read one dataset
     t_board = temp_probes[0];
     try:
         for row in c.execute('''SELECT * from temperature WHERE sondname="board" '''):
-            try:
-                t_board.proc_db(row);
-            except Exception as e:
-                print("!> Failed to process entry %s" %(str(row)));
-
-            if (len(row) > 2):
-                ntmp = float(row[2]);
-                pos = row[1];
-                etim = int(row[0]);
-                if pos == "board":
-                    t_board.add_probe(ntmp, etim, "board");
-                elif pos == "outside":
-                    t_board.add_probe(ntmp, etim, "outside");
-                else:
-                    print("!!!> Unknown entry: %s" %(row));
+            t_board.proc_db(row);
     except Exception as e:
         print("!> Failed to fetch rows from db:%s" % (e));
 
-
+    
     # Now we read data from photoresistor
+    ####################
+    light_probes = [LightProbe('general')]
+    l_general = light_probes[0]
     try:
         for row in c.execute('''SELECT * from light WHERE desc="general" '''):
-            if (len(row) > 2):
-                ntmp = float(row[2]);
-                pos = row[1];
-                etim = int(row[0]);
-                if pos == "general":
-                    t_board.add_probe(ntmp, etim, "board");
-                elif pos == "outside":
-                    t_board.add_probe(ntmp, etim, "outside");
-                else:
-                    print("!!!> Unknown entry: %s" %(row));
-
-    for tb in t_board.tp_thermometrs['board']:
-        print tb;
-    print("=> %d probes" %(t_board.tp_cnt));
-
+            l_general.proc_db(row);
+    except Exception as e:
+        print("!> Failed to fetch rows from db:%s" % (e));
 
     return (conn)
 
