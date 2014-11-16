@@ -48,15 +48,15 @@ class SensorFallback(SensorException):
 
 
 class MQTTH:
+    conn_hnd = None;
+    mosquitto = None;
     user = "";
     password = "";
     timeout = 5;
     server_addr = "127.0.0.1";
-    VERBOSE = False
-    mosquitto = None;
-    DOWORK= True;
     my_hostname = None;
-    conn_hnd = None;
+    DOWORK= True;
+    VERBOSE = False
 
     def __init__(self, user, password, verbose=False):
         self.connect_cb = on_connect;
@@ -69,7 +69,7 @@ class MQTTH:
     	self.mosquitto.username_pw_set(self.user, self.password);
         self.mosquitto.on_publish = on_publish;
         self.mosquitto.on_message = on_message;
-        self.mosquitto.on_message = ArduinoMQTT.MQTT_on_message;;
+        #self.mosquitto.on_message = ArduinoMQTT.MQTT_on_message;;
 
     def connect(self, srv, c_cb=None):
         if c_cb != None:
@@ -90,8 +90,9 @@ class MQTTH:
 ##################################################################
 #
 class ArduinoMQTT:
-	msgbuf = [];
+        totalmsg=0;
         mqtth = None
+	msgbuf = [];
         VERBOSE = True;
 
 	def __init__(self, muser, mpass, verbose=False, timeout=5):
@@ -113,7 +114,7 @@ class ArduinoMQTT:
             try:
                 ret = self.mqtth.mosquitto.loop(timeout=self.mqtth.timeout);
             except Exception as e:
-                self.msgbuf.append("!> Operating problems %s: %s" %(self.mqtth.server_addr, e))
+                err_print("!> Operating problems %s: %s" %(self.mqtth.server_addr, e))
 
             #self.mqtth.loop(5)
             return (0);
@@ -122,15 +123,16 @@ class ArduinoMQTT:
             '''
                 Broadcasting a given message "msg" on MQTT channel
             '''
+            dprint("Sending message \"%s\" to \"%s\"" %(msg, topic))
             try:
-                ret = self.mqtth.publish(topic, msg);
-                #ret = mqtt_conn
+                ret = self.mqtth.mosquitto.publish(topic, msg);
             except KeyboardInterrupt:
-                vprint("|->\t\tKeyboard interruption!");
+                print("|->\t\tKeyboard interruption!");
             except Exception as e:
-                vprint("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
-                raise mqttException(topic, e);
-                sys.exit(3);
+                self.vprint("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
+                raise mqttException(topic, msg);
+                return None
+            self.totalmsg+=1;
             return (ret);
 
 	def vprint(self, line):
@@ -138,9 +140,24 @@ class ArduinoMQTT:
             | Verbose print
             """
             lbuf = "=> %s" %(line);
+            self.msgbuf.append(lbuf)
     	    if self.VERBOSE:
                 print(lbuf);
             return (lbuf);
+	
+        def err_print(self, line):
+            """
+            | Error print
+            """
+            lbuf = "!> %s" %(line);
+            self.msgbuf.append(lbuf)
+    	    if self.VERBOSE:
+                print(lbuf);
+            return (lbuf);
+        #def flush_msgbuf(self):
+        #    self.open("msgbuf.log", 'a') :
+
+
 
 
 class mqttException(Exception):
@@ -165,10 +182,8 @@ def on_message(mosq, obj, msg):
 
 
 def on_publish(mosq, obj, mid):
-    global DEBUG
-    if DEBUG:
-        sys.stderr.write('.');
-    dprint("=> Message "+str(mid)+" published.");
+    sys.stderr.write('.');
+    dprint("=> Message \""+str(mid)+"\" published.");
 
 def on_connect(mosq, obj, rc):
     if rc == 0:
@@ -185,15 +200,26 @@ def read_temp_raw(device_id):
 	try:
     		f = open(devpath , 'r')
 	except IOError as e:
-                raise SensorFallback("Couldn't read device file in path %s :%s" % (devpath, e.strerror));
+                raise SensorFallback("Couldn't open device file in path %s :%s" % (devpath, e.strerror));
 	else:
+            try:
 		lines = f.readlines()
+            except KeyboardInterrupt:
+                f.close()
+                return None
+            except Exception as e:
+                raise SensorFallback("Couldn't read device file in path %s :%s" % (devpath, e.strerror));
+            finally:
 		f.close()
 	return lines
 
-# device_file = Path to device.
-# fieldno = Name of URL parameter "field". Limited to number.
+
 def read_temp(opt):
+        """
+        # device_file = Path to device.
+        # fieldno = Name of URL parameter "field". Limited to number.
+        # DS18B20 
+        """
 	lines = read_temp_raw(opt)
 	if lines == None:
 		return None;
@@ -217,12 +243,18 @@ def read_temp(opt):
 
 
 def get_pcf8591p(opt):
+        '''
+        | Read data from ADC PCF8591 with photoresistor hooked
+        '''
 	f = os.popen("/usr/local/bin/pcf8591p %s" % (opt));
 	vstr = f.read()[:-1]
 	f.close();
 	return (vstr);
 
 def get_dht11(opt):
+        '''
+            Get data from DHT11
+        '''
         binpath="/usr/local/bin/Adafruit_DHT";
         dht11str=""
         pin = opt;
@@ -231,35 +263,27 @@ def get_dht11(opt):
                         f = os.popen("%s 11 %s" %(binpath, pin));
                         dht11str = f.read()[:-1]
                         f.close();
-                except:
-                        print "failed to get data from dht11"
+                except Exception as e:
+                        dprint("failed to get data from dht11")
+                        return None
         return (dht11str);
 
 
-#def get_data(sname):
-#    dta_ret = None;
-#    if sname == "light":
-#        dta_ret = get_pcf8591p("0");
-#    elif sname == "hum":
-#        dta_ret  = get_dht11("25")
-#    elif sname == "t_board":
-#        dta_ret = read_temp("28-0000055a8be7");
-#    else:
-#        print("!!!> Error unknown data type \"%s\"" %(sname));
-#        return None
-#    return (str(dta_ret));
 
 class Sensor:
+    '''
+        Main classe to describe activity of sensors
+    '''
     getdata_cb = None;
     senddata_cb = None;
     arg_cb = ""
     ret_cb = ""
     name = ""
-    mqtt_topic = "/misc"
+    mqtt_topic = ""
     errbuf = []
-    dbgbuf = []
+    exec_ok=0
     
-    def __init__(self, s_getdata_cb, s_mqtt_topic, s_name, arg_cb):
+    def __init__(self, s_getdata_cb, s_name, s_mqtt_topic, arg_cb):
         self.getdata_cb = s_getdata_cb;
         self.name = s_name;
         self.mqtt_topic = s_mqtt_topic;
@@ -281,8 +305,14 @@ class Sensor:
         return 0
 
     def call_dataget(self, opt=None):
-        ret = self.getdata_cb(self.arg_cb)
-        self.ret_cb = ret;
+        try:
+            self.ret_cb = self.getdata_cb(self.arg_cb)
+        except KeyboardInterrupt:
+            self.dprint("keyboard interruption");
+        except Exception as e:
+            self.dprint("While getting data from sensor \"%s\"! %s" %(self.name,e));
+        else:
+            self.exec_ok+=1;
         return (self.ret_cb);
 
 
@@ -294,6 +324,9 @@ class Sensor:
         print("Sending");
         return (0);
 
+    def log_error(self, errmsg): 
+        print("ERROR: %s" % (errmsg));
+        return (errmsg);
 
     def __str__(self):
         strbuf=" | %s@%s | " % (self.name, self.mqtt_topic)
@@ -305,7 +338,7 @@ class Sensor:
 
     def dprint(self, msg):
         msgbuf = ("==> %s | " %(msg));
-        self.dbgbuf.append(msgbuf);
+        self.errbuf.append(msgbuf);
         print msgbuf;
         return (msgbuf);
 
@@ -317,6 +350,7 @@ class SensorSet:
     ss_cb_send_data = {}
     ss_cnt  = 0
     DEBUG  = False
+    ss_debug_buf = []
 
     def __init__(self):
         self.ss_list = {}
@@ -331,7 +365,6 @@ class SensorSet:
 
     def collect_data(self):
         for sens in self.ss_list.keys():
-            print("Calling %s %s" % (str(sens), self.ss_list[sens].name) ) 
             self.ss_list[sens].call_dataget(None);
             #str(self.ss_list[sens])
             sens = self.ss_list[sens];
@@ -340,7 +373,6 @@ class SensorSet:
             
     def send_data(self):
         for sens in self.ss_list.keys():
-            print("Calling %s %s" % (str(sens), self.ss_list[sens].name) ) 
             self.ss_list[sens].call_datasend(None);
             #str(self.ss_list[sens])
             sens = self.ss_list[sens];
@@ -354,54 +386,27 @@ class SensorSet:
             ret_cb = self.ss_list[fsen].ret_cb;
 
             ret_cb = self.ss_list[fsen].getdata_cb(cb_a);
-            
 
-def send_data(mqttconn, sns):
-    '''
-        Send obtained data via MQTT
-    '''
-    dprinter = pprint.PrettyPrinter(indent=8, depth=4);
 
-    dprinter.pprint(mqttconn)
+## End of SensorSet  ######################
+###########################################
+
+
+def Send2MQTT(armqtt, sns):
+    '''
+        Send the data obtained from sensores to MQTT broker
+    '''
     sens_lst = sns.ss_list
     for s in sens_lst.keys():
         topic = sens_lst[s].mqtt_topic
         msg = sens_lst[s].ret_cb
-        print("\t=> %s is sending to \"%s\" values:" %(s, topic))
-        print("\t==> %s" %(msg))
+        armqtt.vprint("\t=> Sending message (\"%s\") to %s" %(msg, topic))
+        try:
+            armqtt.MQTT_publish(topic, msg)
+        except Exception as e:
+            armqtt.vprint("Failed to publish msg (%s) on topic \"%s\": %s" %(msg, topic, e));
 
-        mqttconn.publish(topic, msg);
-
-        
     return (0);
-
-
-    try:
-        t_board = get_data("t_board");
-    except Exception as e:
-        dprint("===> !!! couldn't get temperature of the board:  %s" %(e));
-    else:
-        #print("==> Sending temperature")
-        mqtt_bcast(mqttconn, "/environment/temperature/board", t_board);
-
-
-    try:
-        v_hum = get_data("hum");
-    except Exception as e:
-        print("===> !!! couldn't get humidity of the board: %s" %(e));
-    else:
-        #print("==> Sending humidity")
-        mqtt_bcast(mqttconn, "/environment/humidity/board", v_hum);
-
-    try:
-        v_light = get_data("light");
-    except Exception as e:
-        print("===> !!! couldn't obtain light value: %s" %(e));
-    else:
-        #print("==> Sending light")
-        mqtt_bcast(mqttconn, "/environment/light/general", v_light);
-
-    return 0;
 
 #
 ############################################################################
@@ -409,6 +414,9 @@ def send_data(mqttconn, sns):
 ###
 #
 def main():
+    '''
+        Here we start
+    '''
     VERBOSE=False
     timeout=5
     try:
@@ -432,13 +440,12 @@ def main():
             sys.exit(9);
     # ...
     ar_mqtt = ArduinoMQTT("jez", "cyk", verbose=VERBOSE);
-    mqtt_conn_hnd = ar_mqtt.mqtth.conn_hnd;
+    mqtt_conn_hnd = ar_mqtt.mqtth.mosquitto;
     mqtth = ar_mqtt.mqtth;
     
     '''
     | - connection loop
     '''
-
     ar_mqtt.MQTT_init("172.17.17.9");
     ar_mqtt.MQTT_polling();
     
@@ -449,19 +456,29 @@ def main():
 
     SNS = SensorSet();
     SNS.add_sensor("ds18b20", "/environment/temperature/board",read_temp, "28-0000055a8be7");
-    #SNS.add_sensor("dht11", "/environment/humidity/board", get_dht11, "25");
+    SNS.add_sensor("dht11", "/environment/humidity/board", get_dht11, "25");
     SNS.add_sensor("pcf8591", "/environment/light/general", get_pcf8591p, "0" );
     #SNS.collect_data();
-
+    
+    print("=> Waiting in loop %dseconds" %(mqtth.timeout))
     while mqtth.DOWORK:
+#        if len(ar_mqtt.msgbuf) > 10:
+#            for l in ar_mqtt.msgbuf:
+#                print("MBUF> %s " %(l));
+#                ar_mqtt.msgbuf.pop()
+        ##################
         SNS.collect_data();
+        ##################
         try:
-            send_data(mqtt_conn, SNS);
+            Send2MQTT(ar_mqtt, SNS);
         except Exception as e:
             print("!> Operating problems %s: %s" %(mqtth.server_addr, e))
         if mqtth.DOWORK:
-            time.sleep(mqtth.timeout);
-    print("=> Well done! End of work");
+            try:
+                time.sleep(mqtth.timeout);
+            except KeyboardInterrupt:
+                mqtth.DOWORK=False
+    print("=> Statistics: sent %d messages" %(ar_mqtt.totalmsg));
 
 # NOT REACHED
 
