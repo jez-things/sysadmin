@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 import os,sys,time
 import grp
@@ -8,25 +8,24 @@ import syslog
 import glob
 import traceback
 
-import httplib
+#import httplib
 import string
-import daemon
-import lockfile
+#import daemon
+#import lockfile
 import getopt
 
-import serial
+#import serial
 
 import mosquitto
 import sqlite3
-#import rrdtool
 
 from socket import gethostname;
-#from rrdtool import update as rrd_update
 DBH=None;
 VERBOSE_MODE=False
 POOL_TIMEOUT=1
 brecv = 0;
 bsent = 0;
+totalmsg = 0;
 
 def on_subscribe(mosq, obj, b, mid):
         print("Subscribe with mid "+str(mid)+" received.")
@@ -34,7 +33,7 @@ def on_subscribe(mosq, obj, b, mid):
 
 def on_connect(mosq, obj, rc):
     if rc == 0:
-        print("Connected successfully.")
+        print("===> Connected successfully.")
 
 #class mqtt_stat:
 #    brecv = 0;
@@ -47,6 +46,7 @@ def on_connect(mosq, obj, rc):
 
 
 def init_sqlite3_db(dbpath='mqtt.db'):
+    print("=> Opening sqlite3 database %s" %(dbpath))
     conn = sqlite3.connect(dbpath)
     c = conn.cursor();
     c.execute('''CREATE TABLE IF NOT EXISTS temperature
@@ -64,52 +64,63 @@ def init_sqlite3_db(dbpath='mqtt.db'):
 def update_temperature(connhnd, tname, tstr):
     """
     """
+    try:
+        temp = float(tstr);
+    except Exception as e:
+        print("==> Type conversion failure during DB update:\t%s" %(e));
+        print("==> \"%s\" "  %(tstr));
+        return (0);
+
     curtime = int(time.time());
     c = connhnd.cursor();
-    temp = float(tstr);
     c.execute("INSERT INTO temperature VALUES (%d, '%s', '%f')" % (curtime, tname, temp));
     connhnd.commit();
 
 def update_light(connhnd, lstr, lname="general"):
+    try:
+        light = int(lstr);
+    except Exception as e:
+        print("==> Type conversion failure during updating light statistics: %s"%(e));
+        return (0);
     curtime = int(time.time());
     c = connhnd.cursor();
-    light = int(lstr);
+    light = False
     c.execute("INSERT INTO light VALUES (%d, '%s', '%d')" % (curtime, lname, light));
     connhnd.commit();
 
 def update_humidity(connhnd, hname, hstr):
+    try:
+        humidity = int(hstr);
+    except Exception as e:
+        print("==> Type conversion failure during update: %s"%(e));
+        return (0);
     curtime = int(time.time());
     c = connhnd.cursor();
-    humidity = int(hstr);
     c.execute("INSERT INTO humidity VALUES (%d, '%s', '%d')" % (curtime, hname, humidity));
     connhnd.commit();
 
-def update_rrd_db(rrdpath):
-    global brecv, bsent;
-    ret = -1;
-    if brecv > 0 and bsent > 0:
-        ret = rrd_update(rrdpath, 'N:%s:%s' %(brecv, bsent));
-    return (ret);
 
 
 
 def on_message(mosq, obj, msg):
-    global brecv, bsent, DBH;
+    global brecv, bsent, DBH, totalmsg;
+
+    totalmsg+=1;
     if msg.topic == "$SYS/broker/bytes/received":
         brecv = float(msg.payload);
     elif msg.topic == "$SYS/broker/bytes/sent":
         bsent = float(msg.payload);
     elif msg.topic == "/environment/temperature/board":
         update_temperature(DBH, "board", msg.payload);
-        print("TEMPERATURE %s" %(msg.payload));
+        print("%d\tTEMPERATURE %s" %(totalmsg, msg.payload));
     elif msg.topic == "/environment/humidity/board":
         update_humidity(DBH, "board", msg.payload);
-        print("HUMIDITY %s" %(msg.payload));
+        print("\tHUMIDITY %s" %(msg.payload));
     elif msg.topic == "/environment/light/general":
-        print("LIGHT %s" %(msg.payload));
+        print("\tLIGHT %s" %(msg.payload));
         update_light(DBH, msg.payload);
     else:
-        print("Message received on topic "+msg.topic+" with QoS "+str(msg.qos)+" and payload "+msg.payload)
+        print("\tUnknown message received on topic "+msg.topic+" with QoS "+str(msg.qos)+" and payload "+msg.payload)
         
 
 
@@ -118,28 +129,34 @@ def mqtt_init(srvaddr="172.17.17.9", tmout=-1):
     name=gethostname();
     mos = mosquitto.Mosquitto("mqttc_%s" % (name))
     mos.username_pw_set("mosq", "dziki");
-    #mos.on_connect = on_connect;
+    mos.on_connect = on_connect;
     mos.on_message = on_message;
     #mos.on_subscribe = on_subscribe;
     try:
+        print("=> Connecting to %s" %(srvaddr))
         mos.connect(srvaddr);
     except:
         print("Failed to connect to %s" % (srvaddr));
         sys.exit(3);
+    print("==> Connected to broker");
     mos.loop(timeout=tmout)
     mos.publish("system/status", "GRAPH_ON", 1)
     return (mos);
 
+def mqtt_sub(mos, topic):
+    mos.subscribe(topic, 0);
 
-def mqtt_sub(mos):
+def mqtt_sub_all(mos):
+    """
+        Subscribing to topics
+    """
     #mos.subscribe("$SYS/broker/load/connections/5min", 0);
     #mos.subscribe("$SYS/broker/bytes/received", 0);
     #mos.subscribe("$SYS/broker/bytes/sent", 0);
     #mos.subscribe("$SYS/broker/heap/current", 0);
-    mos.subscribe("environment/temperature/#", 0);
-    mos.subscribe("environment/light/#", 0);
-    mos.subscribe("environment/humidity/#", 0);
-
+    mqtt_sub(mos, "environment/temperature/#");
+    mqtt_sub(mos, "environment/light/#");
+    mqtt_sub(mos, "environment/humidity/#");
 
 
 def mqtt_recvloop(mos):
@@ -153,9 +170,10 @@ def mqtt_recvloop(mos):
             time.sleep(1);
         except KeyboardInterrupt:
             doloop = False;
+            print("!> Interrupted via keyboard");
         #print("bytes: %d/%d" %(brecv, bsent));
         #mos.unsubscribe("environment/temperature");
-
+    print("!> Disconnected with broker");
     mos.disconnect();
 
 
@@ -165,9 +183,8 @@ def main():
     global VERBOSE_MODE, DBH;
     DBH = init_sqlite3_db("mqtt.db");
     mos = mqtt_init('172.17.17.9', 30);
-    mqtt_sub(mos);
+    mqtt_sub_all(mos);
     mqtt_recvloop(mos);
-    print("bye");
     sys.exit(0);
 
 
