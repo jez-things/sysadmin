@@ -51,7 +51,7 @@ class MQTTH:
     user = "";
     password = "";
     timeout = 5;
-    mqtt_srv = "127.0.0.1";
+    server_addr = "127.0.0.1";
     VERBOSE = False
     mosquitto = None;
     DOWORK= True;
@@ -68,72 +68,54 @@ class MQTTH:
         self.mosquitto = mosquitto.Mosquitto("mqttc");
     	self.mosquitto.username_pw_set(self.user, self.password);
         self.mosquitto.on_publish = on_publish;
+        self.mosquitto.on_message = on_message;
+        self.mosquitto.on_message = ArduinoMQTT.MQTT_on_message;;
 
     def connect(self, srv, c_cb=None):
         if c_cb != None:
             self.conn_hnd.on_connect = c_cb;
 
-        self.mqtt_srv = srv;
+        self.server_addr = srv;
         try:
-            self.conn_hnd = self.mosquitto.connect(self.mqtt_srv);
+            self.conn_hnd = self.mosquitto.connect(self.server_addr);
         except Exception as e:
-            print("!> couldn't connect to %s: %s" %(self.mqtt_srv, e))
+            print("!> couldn't connect to %s: %s" %(self.server_addr, e))
             return None
         return (self.conn_hnd);
 
 #
     def loop(self, tm=5):
-        try:
-            ret = self.mosquitto.loop(timeout=self.timeout);
-        except Exception as e:
-            print("!> Operating problems %s: %s" %(self.mqtt_srv, e))
-
-        '''
-            Here there's the place for new sensores!
-            Add them separately
-        '''
-
-        SNS = SensorSet();
-        SNS.add_sensor("ds18b20", "/environment/temperature/board",read_temp, "28-0000055a8be7");
-        #SNS.add_sensor("dht11", "/environment/humidity/board", get_dht11, "25");
-        SNS.add_sensor("pcf8591", "/environment/light/general", get_pcf8591p, "0" );
-        #SNS.collect_data();
-
-        MQTT_CONN = self.conn_hnd;
-        databuf = {};
-        while self.DOWORK:
-            SNS.collect_data();
-            try:
-                send_data(self.conn_hnd, SNS);
-            except Exception as e:
-                print("!> Operating problems %s: %s" %(self.mqtt_srv, e))
-
-            if self.DOWORK:
-                time.sleep(self.timeout);
-        print("=> Well done! End of work");
         return (ret)
 #
 ##################################################################
 #
 class ArduinoMQTT:
 	msgbuf = [];
-        mqtt = None
+        mqtth = None
         VERBOSE = True;
 
 	def __init__(self, muser, mpass, verbose=False, timeout=5):
             self.VERBOSE = verbose;
             self.timeout = timeout;
-            self.mqtt = MQTTH(user=muser, password=mpass);
+            self.mqtth = MQTTH(user=muser, password=mpass);
 
         def MQTT_init(self, srv=None):
                 if srv == None:
                     srv = "127.0.0.1"
                 self.vprint("Connecting to %s" %(srv));
-		self.mqtt.connect(srv);
-		return (self.mqtt.conn_hnd);
+		self.mqtth.connect(srv);
+		return (self.mqtth.conn_hnd);
+        def MQTT_on_message(self, mosq, obj, msg):
+            self.msgbuf.append("Message received on topic "+msg.topic+" with QoS "+str(msg.qos)+" and payload "+msg.payload)
+            return (msg);
 
         def MQTT_polling(self):
-            self.mqtt.loop(5)
+            try:
+                ret = self.mqtth.mosquitto.loop(timeout=self.mqtth.timeout);
+            except Exception as e:
+                self.msgbuf.append("!> Operating problems %s: %s" %(self.mqtth.server_addr, e))
+
+            #self.mqtth.loop(5)
             return (0);
 
         def MQTT_publish(self, topic, msg):
@@ -141,7 +123,7 @@ class ArduinoMQTT:
                 Broadcasting a given message "msg" on MQTT channel
             '''
             try:
-                ret = self.mqtt.publish(topic, msg);
+                ret = self.mqtth.publish(topic, msg);
                 #ret = mqtt_conn
             except KeyboardInterrupt:
                 vprint("|->\t\tKeyboard interruption!");
@@ -178,13 +160,19 @@ def dprint(msg):
         print("=> %s" %(msg));
     return (msg);
 
+def on_message(mosq, obj, msg):
+    dprint("Message received on topic "+msg.topic+" with QoS "+str(msg.qos)+" and payload "+msg.payload)
+
+
 def on_publish(mosq, obj, mid):
-    #print("=> Message "+str(mid)+" published.");
-    print(".");
+    global DEBUG
+    if DEBUG:
+        sys.stderr.write('.');
+    dprint("=> Message "+str(mid)+" published.");
 
 def on_connect(mosq, obj, rc):
     if rc == 0:
-        print("=> Connected successfully");
+        dprint("=> Connected successfully");
 
 #####
 
@@ -444,14 +432,36 @@ def main():
             sys.exit(9);
     # ...
     ar_mqtt = ArduinoMQTT("jez", "cyk", verbose=VERBOSE);
-
+    mqtt_conn_hnd = ar_mqtt.mqtth.conn_hnd;
+    mqtth = ar_mqtt.mqtth;
     
-    ar_mqtt.MQTT_init("172.17.17.9");
-    ar_mqtt.MQTT_polling();
     '''
     | - connection loop
     '''
 
+    ar_mqtt.MQTT_init("172.17.17.9");
+    ar_mqtt.MQTT_polling();
+    
+    '''
+    Here there's the place for new sensores!
+    Add them separately
+    '''
+
+    SNS = SensorSet();
+    SNS.add_sensor("ds18b20", "/environment/temperature/board",read_temp, "28-0000055a8be7");
+    #SNS.add_sensor("dht11", "/environment/humidity/board", get_dht11, "25");
+    SNS.add_sensor("pcf8591", "/environment/light/general", get_pcf8591p, "0" );
+    #SNS.collect_data();
+
+    while mqtth.DOWORK:
+        SNS.collect_data();
+        try:
+            send_data(mqtt_conn, SNS);
+        except Exception as e:
+            print("!> Operating problems %s: %s" %(mqtth.server_addr, e))
+        if mqtth.DOWORK:
+            time.sleep(mqtth.timeout);
+    print("=> Well done! End of work");
 
 # NOT REACHED
 
