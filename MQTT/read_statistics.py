@@ -291,21 +291,21 @@ def ProbeRRD_Create_temp(g_path, rrddef=None, rrdrra=None):
     DS_str = '''DS:mtemp:GAUGE:600:U:50'''
     RRA_avg_str = '''RRA:AVERAGE:0.5:1:24'''
     RRA_max_str = '''RRA:MAX:0.5:1:228'''
-    rrdh = rrdtool.create(g_path, '--start', 'now-3600s', '--step','300', DS_str, RRA_avg_str, RRA_max_str);
+    rrdh = rrdtool.create(g_path, '--start', 'now-1d', '--step','60', DS_str, RRA_avg_str, RRA_max_str);
     return (rrdh);
 
 def ProbeRRD_Create_light(g_path, rrddef=None, rrdrra=None):
     DS_str = '''DS:light:GAUGE:600:U:50'''
     RRA_avg_str = '''RRA:AVERAGE:0.5:1:24'''
     RRA_max_str = '''RRA:MAX:0.5:1:228'''
-    rrdh = rrdtool.create(g_path, '--start', 'now-3600s', '--step','300', DS_str, RRA_avg_str, RRA_max_str);
+    rrdh = rrdtool.create(g_path, '--start', 'now-10800s', '--step','60', DS_str, RRA_avg_str, RRA_max_str);
     return (rrdh);
 
 def ProbeRRD_Create_hum(g_path, rrddef=None, rrdrra=None):
     DS_str = '''DS:hum:GAUGE:600:U:50'''
     RRA_avg_str = '''RRA:AVERAGE:0.5:1:24'''
     RRA_max_str = '''RRA:MAX:0.5:1:228'''
-    rrdh = rrdtool.create(g_path, '--start', 'now-3600s', '--step','300', DS_str, RRA_avg_str, RRA_max_str);
+    rrdh = rrdtool.create(g_path, '--start', 'now-1d', '--step','60', DS_str, RRA_avg_str, RRA_max_str);
     return (rrdh);
 
 def ProbeRRD_Update(g_path, SP):
@@ -328,20 +328,15 @@ def ProbeRRD_Update(g_path, SP):
         cnt+=1;
     return (ret);
 
-def ProbeRRD_Graph(f_name, rrddef=None, rrdline2=None):
-    if rrddef == None and rrdline2==None:
-        DEF='''DEF:mytemp=temperature.rrd:mtemp:AVERAGE'''
-        LINE2='''LINE2:mytemp#FF0000'''
-    elif rrddef != None and rrdline2 != None:
-        DEF=rrddef;
-        LINE2=rrdline2
-    else:
-        raise GrapherFault(301);
-
+def ProbeRRD_Graph_temp(f_name):
+    DEF='''DEF:mytemp=temperature.rrd:mtemp:AVERAGE'''
+    LINE2='''LINE2:mytemp#FF0000'''
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-120000s', '--step','300', '--width', '400', DEF, LINE2);
+        ret = rrdtool.graph(graph_f, '--start', 'now-4h', '--step','60', '--width', '600', '--height', '300', '--title', 'Weather - Temperature', '--vertical-label', 'C', '--color=BACK#CCCCCC', '--color=CANVAS#CCFFFF', "--color=SHADEB#9999CC", '--x-grid', 'SECOND:1:SECOND:4:SECOND:10:0:%X', DEF, LINE2);
+
+
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
@@ -355,6 +350,50 @@ def ProbeRRD_Graph(f_name, rrddef=None, rrdline2=None):
 #            os.unlink(f_name);
     return(ret)
 
+def ProbeRRD_Graph_light(f_name):
+    '''
+        plotting light
+    '''
+    DEF='''DEF:mylight=light.rrd:light:AVERAGE'''
+    LINE2='''LINE2:mylight#FFF000'''
+
+    graph_f=(f_name[:-3]+"png");
+    ret = None;
+    try:
+        ret = rrdtool.graph(graph_f, '--start', 'now-10800s', '--step','300', '--width', '500', '--height', '300', '--title', 'Weather - light', DEF, LINE2);
+    except Exception as e:
+        print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
+        try:
+            os.stat(f_name)
+        except:
+            pass;
+        else:
+            print("==> File \"%s\" still exists but rrdgraph failed!" %(f_name));
+#    finally:
+#        if AskUser("####> Found stale file \"%s\". Removing?"%(f_name)) == "y":
+#            os.unlink(f_name);
+    return(ret)
+
+def ProbeRRD_Graph_humidity(f_name):
+
+    DEF='''DEF:mytemp=temperature.rrd:mtemp:AVERAGE'''
+    LINE2='''LINE2:mytemp#FF0000'''
+    graph_f=(f_name[:-3]+"png");
+    ret = None;
+    try:
+        ret = rrdtool.graph(graph_f, '--start', 'now-10800s', '--step','300', '--width', '500', '--height', '300', '--title', 'Weather', DEF, LINE2);
+    except Exception as e:
+        print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
+        try:
+            os.stat(f_name)
+        except:
+            pass;
+        else:
+            print("==> File \"%s\" still exists but rrdgraph failed!" %(f_name));
+#    finally:
+#        if AskUser("####> Found stale file \"%s\". Removing?"%(f_name)) == "y":
+#            os.unlink(f_name);
+    return(ret)
 
 def get_db_row(db_conn_h, t_name, db_cond):
     query = '''SELECT * from %s %s''' % (t_name, db_cond)
@@ -396,7 +435,7 @@ def read_db(dbpath):
     for ts in Tsensors.TS_sensors.ps_sensorset['TEMPERATURE']['board']:
         ProbeRRD_Update(RRD_db, ts);
 
-    ProbeRRD_Graph(RRD_db);
+    ProbeRRD_Graph_temp(RRD_db);
         
     #print("rrdupdate temperature.rrd %s"%(str(ts.toRRD())))
     
@@ -409,8 +448,6 @@ def read_db(dbpath):
 
     RRD_db = 'light.rrd';
     ProbeRRD_Create_light(RRD_db);
-    DEF='''DEF:mylight=light.rrd:light:AVERAGE'''
-    LINE2='''LINE2:mylight#FF0000'''
 
     Lsensors = LightSensor(["general"]);
     for row in get_db_row(c, "light", ''' WHERE desc="general"'''):
@@ -420,7 +457,7 @@ def read_db(dbpath):
         #print("LIGHT) %s" %(str(ts)));
         ProbeRRD_Update(RRD_db, ts);
 
-    ProbeRRD_Graph('light.rrd', DEF, LINE2);
+    ProbeRRD_Graph_light('light.rrd');
 
     #---------
     # Humidity
@@ -439,7 +476,7 @@ def read_db(dbpath):
         probes_total+=1;
         #print("HUMIDITY) %s" %(str(ts)));
     
-    ProbeRRD_Graph('humidity.rrd', DEF, LINE2);
+    ProbeRRD_Graph_humidity('humidity.rrd');
 
     return (conn)
 
