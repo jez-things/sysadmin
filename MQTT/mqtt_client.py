@@ -7,6 +7,8 @@ import signal
 import syslog
 import glob
 import traceback
+import pprint
+import trace
 
 import httplib
 import string
@@ -18,14 +20,15 @@ import random
 
 import socket
 import subprocess
+import daemon
+from spam import do_main_program
 
-import pprint
 #from socket import gethostname;
 DEBUG=False
 VERBOSE_MODE=False
-POOL_TIMEOUT=1
 #ar_mqtt=False;
-
+###############################################
+# 
 class SensorException(Exception):
     em = {100:"Incorrect arguments", \
           101:"Internal failure!"}
@@ -46,6 +49,7 @@ class SensorFallback(SensorException):
     def __str__(self):
         return repr(self.value)
 
+###############################################
 
 class MQTTH:
     conn_hnd = None;
@@ -57,6 +61,7 @@ class MQTTH:
     my_hostname = None;
     DOWORK= True;
     VERBOSE = False
+    DEBUG = False
 
     def __init__(self, user, password, verbose=False):
         self.connect_cb = on_connect;
@@ -79,8 +84,7 @@ class MQTTH:
         try:
             self.conn_hnd = self.mosquitto.connect(self.server_addr);
         except Exception as e:
-            print("!> couldn't connect to %s: %s" %(self.server_addr, e))
-            return None
+            raise(mqttException("!> couldn't connect to %s: %s" %(self.server_addr, e)))
         return (self.conn_hnd);
 
 #
@@ -90,7 +94,14 @@ class MQTTH:
 ##################################################################
 #
 class ArduinoMQTT:
+        """
+
+        Main class
+
+        """
         totalmsg=0;
+        totalmsg_sent_ok=0;
+        totalmsg_sent_fail=0;
         mqtth = None
 	msgbuf = [];
         VERBOSE = True;
@@ -114,7 +125,7 @@ class ArduinoMQTT:
             try:
                 ret = self.mqtth.mosquitto.loop(timeout=self.mqtth.timeout);
             except Exception as e:
-                err_print("!> Operating problems %s: %s" %(self.mqtth.server_addr, e))
+                raise(mqttException("Operating problems %s: %s" %(self.mqtth.server_addr, e)))
 
             #self.mqtth.loop(5)
             return (0);
@@ -127,11 +138,11 @@ class ArduinoMQTT:
             try:
                 ret = self.mqtth.mosquitto.publish(topic, msg);
             except KeyboardInterrupt:
-                print("|->\t\tKeyboard interruption!");
+                self.vprint("|->\t\tKeyboard interruption!");
+                raise(mqttException("Keyboard interruption"))
             except Exception as e:
-                self.vprint("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
-                raise mqttException(topic, msg);
-                return None
+                #self.vprint("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
+                raise(mqttException("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
             self.totalmsg+=1;
             return (ret);
 
@@ -142,7 +153,7 @@ class ArduinoMQTT:
             lbuf = "=> %s" %(line);
             self.msgbuf.append(lbuf)
     	    if self.VERBOSE:
-                print(lbuf);
+                    print(lbuf);
             return (lbuf);
 	
         def err_print(self, line):
@@ -158,14 +169,64 @@ class ArduinoMQTT:
         #    self.open("msgbuf.log", 'a') :
 
 
+#class MQTTwin(MQTTArduino):
+#    stdscr=None
+#    main_win=None
+#    status_win=None
+#    off_x=2;
+#    off_y=2;
+#    status_win=None
+#
+#    def __init__(self):
+#        self.stdscr = curses.initscr();
+#        self.stdscr.refresh()
+#        curses.noecho();
+#        self.status_win = curses.newwin(7, 87, 16, 1);
+#        self.status_win.border();
+#        
+#        self.main_win = curses.newwin(15, 87, 1, 1);
+#        #self.main_win.scroll(True)
+#        self.main_win.border();
+#
+#    def Mos_statwin(self, stat_w):
+#        self.col1 = self.main_win.subwin(3, 25, 2, 3);
+#        self.col2 = self.main_win.subwin(3, 25, 2, 28);
+#        self.col3 = self.main_win.subwin(3, 25, 2, 28);
+#
+#    def Mos_print(self,  msg,y=0, x=0, W_p=None):
+#        self.off_y += y;
+#        self.off_x += x;
+#        if W_p == None:
+#            W_p = self.main_win;
+#        W_p.addstr(self.off_y, self.off_x, msg);
+#
+#    def Mos_refresh(self, area=None):
+#        self.status_win.refresh();
+#        self.main_win.refresh();
+#
+#    def __del__(self):
+#        print "ERASED!"
+#        self.main_win.erase();
+#        self.status_win.erase();
+#        curses.endwin()
+
+
+#class MQTTsysException(Exception):
+#    StrErrs = {
+#        100:"Connection problems",
+#        200:"User interruption",
+#        
+#    def __init__(self, code):
+#        self.code = code;
+#    def __str__(self):
+#        return (self.StrErrs[self.code])
 
 
 class mqttException(Exception):
-    def __init__(self, topic, msg):
-        self.topic = topic;
-        self.msg = msg;
+    def __init__(self, e):
+        self.value = e;
     def __str__(self):
-        return (self.topic);
+        return (self.value);
 
 ###########################################
 # Callbacks:
@@ -321,11 +382,11 @@ class Sensor:
         return (self.ret_cb);
 
     def send_via_mqtt(self, mos):
-        print("Sending");
+        self.dprint("Sending");
         return (0);
 
     def log_error(self, errmsg): 
-        print("ERROR: %s" % (errmsg));
+        self.dprint("ERROR: %s" % (errmsg));
         return (errmsg);
 
     def __str__(self):
@@ -339,7 +400,7 @@ class Sensor:
     def dprint(self, msg):
         msgbuf = ("==> %s | " %(msg));
         self.errbuf.append(msgbuf);
-        print msgbuf;
+        sys.stderr.write(msgbuf+"\n");
         return (msgbuf);
 
 
@@ -404,7 +465,7 @@ def Send2MQTT(armqtt, sns):
         try:
             armqtt.MQTT_publish(topic, msg)
         except Exception as e:
-            armqtt.vprint("Failed to publish msg (%s) on topic \"%s\": %s" %(msg, topic, e));
+            raise(mqttException("Failed to publish msg (%s) on topic \"%s\": %s" %(msg, topic, e)));
 
     return (0);
 
@@ -413,6 +474,13 @@ def Send2MQTT(armqtt, sns):
 # main
 ###
 #
+
+def usage():
+    sys.stderr.write("usage: mqttc -vh\n");
+    sys.exit(64);
+
+
+
 def main():
     '''
         Here we start
@@ -423,7 +491,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], "hs:b:t:v", ["help", "timeout="])
     except getopt.GetoptError as err:
         # print help information and exit:
-        print str(err) # will print something like "option -a not recognized"
+        dprint  str(err) # will print something like "option -a not recognized"
         usage()
         sys.exit(2)
     
@@ -436,7 +504,7 @@ def main():
         elif o in ("-t", "--timeout"):
             timeout = int(a);
         else:
-            print("ERROR: Unhandled option");
+            dprint("ERROR: Unhandled option");
             sys.exit(9);
     # ...
     ar_mqtt = ArduinoMQTT("jez", "cyk", verbose=VERBOSE);
@@ -460,33 +528,31 @@ def main():
     SNS.add_sensor("pcf8591", "/environment/light/general", get_pcf8591p, "0" );
     #SNS.collect_data();
     
-    print("=> Waiting in loop %dseconds" %(mqtth.timeout))
+    dprint("=> Waiting in loop %dseconds" %(mqtth.timeout))
     while mqtth.DOWORK:
-#        if len(ar_mqtt.msgbuf) > 10:
-#            for l in ar_mqtt.msgbuf:
-#                print("MBUF> %s " %(l));
-#                ar_mqtt.msgbuf.pop()
         ##################
         SNS.collect_data();
         ##################
         try:
             Send2MQTT(ar_mqtt, SNS);
         except Exception as e:
-            print("!> Operating problems %s: %s" %(mqtth.server_addr, e))
+            raise(mqttException("!> Operating problems %s: %s" %(mqtth.server_addr, e)))
         if mqtth.DOWORK:
             try:
                 time.sleep(mqtth.timeout);
             except KeyboardInterrupt:
                 mqtth.DOWORK=False
+    # EOW
     print("=> Statistics: sent %d messages" %(ar_mqtt.totalmsg));
 
 # NOT REACHED
+
+
 
 if __name__ == "__main__":
     main()
 
 
 
-def usage():
-    print("usage: mqttc -vh");
-    sys.exit(64);
+with daemon.DaemonContext():
+     do_main_program()
