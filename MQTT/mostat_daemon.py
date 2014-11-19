@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2.7
 
 import os,sys,time
 #import datetime
@@ -18,6 +18,8 @@ import mosquitto
 import sqlite3
 import curses
 
+import daemon
+
 from socket import gethostname;
 from datetime import date,datetime;
     
@@ -35,6 +37,7 @@ def sig_handler(signum, fname):
 class APPIO:
     DEBUG=False
     VERBOSE=False
+    DoDaemon=False
     appname=""
 
     def __init__(self, verbose=False, debug=False):
@@ -388,21 +391,23 @@ def main():
     MyIO.pidfile();
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hD:vd", ["help", "db=", "verbose", "debug"])
+        opts, args = getopt.getopt(sys.argv[1:], "hp:vdD", ["help", "db path=", "db=", "verbose", "debug", "daemon"])
     except getopt.GetoptError as err:
         #print str(err) # will print something like "option -a not recognized"
-        print("usage: %s -dv -D" %(sys.argv[0])) 
+        print("usage: %s -d -v -D -p [dbpath]" %(sys.argv[0])) 
         sys.exit(64)
     # Some opts which we need to accomplish getopt
     for o, a in opts:
         if o == "-v":
             MyIO.VERBOSE = True
+        elif o == "-D":
+            MyIO.DoDaemon = True;
         elif o == "-d":
             MyIO.DEBUG = True
         elif o in ("-h", "--help"):
             print("usage: %s -dv -D" %(sys.argv[0])) 
             sys.exit()
-        elif o in ("-D", "--db"):
+        elif o in ("-p", "--db-path"):
             DBH.db_path = a;
         else:
             assert False, "unhandled option"
@@ -419,5 +424,9 @@ def main():
     del MyIO
     return 0
 
-if __name__ == "__main__":
-    main()
+if DoDaemon:
+    with daemon.DaemonContext():
+        main()
+else:
+        main()
+    
