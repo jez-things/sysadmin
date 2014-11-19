@@ -330,13 +330,11 @@ def ProbeRRD_Update(g_path, SP):
 
 def ProbeRRD_Graph_temp(f_name):
     DEF='''DEF:mytemp=temperature.rrd:mtemp:AVERAGE'''
-    LINE2='''LINE2:mytemp#FF0000'''
+    LINE2='''LINE2:mytemp#00FFFF'''
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-4h', '--step','60', '--width', '600', '--height', '300', '--title', 'Weather - Temperature', '--vertical-label', 'C', '--color=BACK#CCCCCC', '--color=CANVAS#CCFFFF', "--color=SHADEB#9999CC", '--x-grid', 'SECOND:1:SECOND:4:SECOND:10:0:%X', DEF, LINE2);
-
-
+        ret = rrdtool.graph(graph_f, '--start', 'now-1h', '--step','10', '--width', '600', '--height', '300', '--title', 'Temperature - inside', '--vertical-label', 'C', '--color=BACK#696969', '--color=CANVAS#696969', '--grid-dash', '1:3', '-E', '--graph-render-mode', 'normal', '-W', 'mar nov 18 22:10:05 CET 2014', '--font','TITLE:13:Times' ,"--color=SHADEB#9999CC", DEF, LINE2);
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
