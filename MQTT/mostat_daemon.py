@@ -47,6 +47,10 @@ class APPIO:
     def __del__(self):
         self.logdebug("Closing connection to syslog");
         syslog.closelog();
+        try:
+            os.unlink(self.pidfile)
+        except Exception:
+            pass
 
     def setup_debug(self, level):
         global sig_handler
@@ -65,12 +69,32 @@ class APPIO:
             sys.stderr.write("!-> %s \n" %(msg));
         return 0
 
+    def pidfile(self):
+        pid = str(os.getpid())
+        self.pidfile = "/var/run/mqttstat/%s.pid" %(self.appname)
+
+        if os.path.isfile(self.pidfile):
+            self.logmsg("%s already exists, exiting" % self.pidfile)
+            sys.exit()
+        else:
+            try: 
+                open(self.pidfile, 'w').write(pid)
+            except Exception as e:
+                self.logmsg("Couldn't create pidfile %s" % self.pidfile)
+                raise(ExceptionAPPIO(400, e))
+
+
+
+        
+
+
 class ExceptionAPPIO(Exception):
     ExStr = {
             201: "Consistency problem", \
             202: "DB access problem", \
             203: "DB connection problem", \
             204: "Data conversion problem", \
+            400: "Problem with permissions", \
             300: "Extra data" \
         }
     def __init__(self, code, msg=""):
@@ -127,7 +151,8 @@ class DBHandler:
     
     def __del__(self):
         # """
-        self.conn_h.close(); # SQlite3 *
+        if self.conn_h != None:
+            self.conn_h.close(); # SQlite3 *
 
 # XXX TODO
 #
@@ -216,21 +241,23 @@ def on_connect(mosq, obj, rc):
 def update_temperature(DBH_p, tname, tstr):
     """
     """
+    ret = False;
     try:
         temp = float(tstr);
     except Exception as e:
-        MyIO.logmsg("Type conversion failure@update_temperature:\t%s" %(e));
-        raise(ExceptionIOAPP(204, str(e)));
-    curtime = int(time.time());
-    DBH_p.db_ex_query("INSERT INTO temperature VALUES (%d, '%s', '%f')" % (curtime, tname, temp));
-    return (0);
+        raise(ExceptionAPPIO(204, "float(\"%s\"): %s"%(tstr,str(e)) ));
+    else:
+        curtime = int(time.time());
+        DBH_p.db_ex_query("INSERT INTO temperature VALUES (%d, '%s', '%f')" % (curtime, tname, temp));
+        ret=True;
+    return (ret);
 
 def update_light(DBH_p, lstr, lname="general"):
     try:
         light = int(lstr);
     except Exception as e:
         MyIO.logmsg("Type conversion failure@update_light() : %s"%(e));
-        raise(ExceptionIOAPP(204, str(e)));
+        raise(ExceptionAPPIO(204, str(e)));
     curtime = int(time.time());
     DBH_p.db_ex_query("INSERT INTO light VALUES (%d, '%s', '%d')" % (curtime, lname, light));
     return (0);
@@ -258,24 +285,38 @@ def on_message(mosq, obj, msg):
     #elif topic == "$SYS/broker/bytes/sent":
     #    bsent = float(val);
     if topic == "/environment/temperature/board":
-        update_temperature(DBH, "board", val);
-        MyIO.logdebug("Message %s on %s. temerature=%s" %(topic, topic, val))
+        try:
+            update_temperature(DBH, "board", val);
+        except ExceptionAPPIO as e:
+            MyIO.logdebug("Failed to update_temperature() %s. temerature=%s" %(topic, val))
+        else:
+            MyIO.logdebug("Message update_temperature() on %s. temerature=%s" %(topic, val))
     elif topic == "/environment/humidity/board":
-        update_humidity(DBH, "board", val);
-        MyIO.logdebug("Message %s on %s. humidity=%s" %(topic, topic, val))
+        try:
+            update_humidity(DBH, "board", val);
+        except ExceptionAPPIO as e:
+            MyIO.logdebug("ERROR: update_humidity() %s on %s. humidity=%s" %(topic, val))
+        else:
+            MyIO.logdebug("Message update_humidity() on %s. humidity=%s" %(topic, val))
     elif topic == "/environment/light/general":
-        update_light(DBH, val);
-        MyIO.logdebug("Message %s on %s. light=%s" %(topic, topic, val))
+        try:
+            update_light(DBH, val);
+        except ExceptionAPPIO as e:
+            MyIO.logdebug("ERROR update_light() %s on light=%s" %(topic, val))
+        else:
+            MyIO.logdebug("Message %s on light=%s" %(topic, val))
     else:
         MyIO.logmsg("Unknown message on topic=\"topic\"("+str(msg.qos)+") - "+val)
         raise(ExceptionAPPIO(300, val+" "+topic))
     return 0;
-    
-        
-
-
 
 def mqtt_init(srvaddr="172.17.17.9", tmout=-1):
+    """
+        Initialisation of MQTT connection
+
+
+
+    """
     name=gethostname();
     mos = mosquitto.Mosquitto("mqttc_%s" % (name))
     mos.username_pw_set("mosq", "dziki");
@@ -322,8 +363,8 @@ def mqtt_recvloop(mos, timeout=2):
             MyIO.logmsg("!> Interrupted via keyboard in mqtt_recvloop()");
             DOLOOP=False
         except Exception as e:
+            traceback.print_exc(file=sys.stderr)
             MyIO.logmsg("Error occured: %s" %(str(e)));
-            MyIO.logmsg("Exiting...")
             DOLOOP=False
         else:
             if MyIO.DEBUG and n >= 0:
@@ -336,6 +377,16 @@ def mqtt_recvloop(mos, timeout=2):
 
 
 def main():
+    global DBH, ACC, MyIO;
+
+    ACC = Accounting()
+    MyIO = APPIO()
+    DBH = DBHandler("./mqtt.db");
+
+    MyIO.VERBOSE=False
+    MyIO.DEBUG=False
+    MyIO.pidfile();
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hD:vd", ["help", "db=", "verbose", "debug"])
     except getopt.GetoptError as err:
@@ -343,12 +394,6 @@ def main():
         print("usage: %s -dv -D" %(sys.argv[0])) 
         sys.exit(64)
     # Some opts which we need to accomplish getopt
-    global DBH, ACC, MyIO;
-    ACC = Accounting()
-    MyIO = APPIO()
-    DBH = DBHandler("./mqtt.db");
-    MyIO.VERBOSE=False
-    MyIO.DEBUG=False
     for o, a in opts:
         if o == "-v":
             MyIO.VERBOSE = True
@@ -371,6 +416,7 @@ def main():
     mqtt_sub_all(mos);
     mqtt_recvloop(mos);
     #DBH.close(); # SQlite3 *
+    del MyIO
     return 0
 
 if __name__ == "__main__":
