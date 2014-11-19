@@ -21,11 +21,11 @@ import random
 import socket
 import subprocess
 import daemon
-from spam import do_main_program
 
 #from socket import gethostname;
 DEBUG=False
-VERBOSE_MODE=False
+VERBOSE=False
+DoDaemon=False
 #ar_mqtt=False;
 ###############################################
 # 
@@ -122,18 +122,18 @@ class ArduinoMQTT:
             return (msg);
 
         def MQTT_polling(self):
+            self.vprint("Looping %d seconds "%(self.mqtth.timeout));
             try:
                 ret = self.mqtth.mosquitto.loop(timeout=self.mqtth.timeout);
             except Exception as e:
                 raise(mqttException("Operating problems %s: %s" %(self.mqtth.server_addr, e)))
-
-            #self.mqtth.loop(5)
             return (0);
 
         def MQTT_publish(self, topic, msg):
             '''
                 Broadcasting a given message "msg" on MQTT channel
             '''
+            self.totalmsg+=1;
             dprint("Sending message \"%s\" to \"%s\"" %(msg, topic))
             try:
                 ret = self.mqtth.mosquitto.publish(topic, msg);
@@ -142,8 +142,8 @@ class ArduinoMQTT:
                 raise(mqttException("Keyboard interruption"))
             except Exception as e:
                 #self.vprint("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
-                raise(mqttException("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e));
-            self.totalmsg+=1;
+                raise(mqttException("ERROR: Failed to send msg \"%s\"  to  \"%s\": %s" %(msg, topic, e)));
+                self.totalmsg_sent_fail+=1;
             return (ret);
 
 	def vprint(self, line):
@@ -485,19 +485,23 @@ def main():
     '''
         Here we start
     '''
-    VERBOSE=False
+    global VERBOSE, DEBUG, DoDaemon
+    
     timeout=5
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hs:b:t:v", ["help", "timeout="])
+        opts, args = getopt.getopt(sys.argv[1:], "dDht:v", ["help", "timeout="])
     except getopt.GetoptError as err:
         # print help information and exit:
-        dprint  str(err) # will print something like "option -a not recognized"
         usage()
         sys.exit(2)
     
     for o, a in opts:
         if o == "-v":
             VERBOSE = True
+        elif o in ("-d", "--debug"):
+            DEBUG=True
+        elif o in ("-D", "--daemon"):
+            DoDaemon = True;
         elif o in ("-h", "--help"):
             usage()
             sys.exit()
@@ -545,14 +549,9 @@ def main():
     # EOW
     print("=> Statistics: sent %d messages" %(ar_mqtt.totalmsg));
 
-# NOT REACHED
-
-
-
-if __name__ == "__main__":
-    main()
-
-
-
-with daemon.DaemonContext():
-     do_main_program()
+if DoDaemon:
+    with daemon.DaemonContext():
+        main()
+else:
+        main()
+    
