@@ -327,6 +327,7 @@ def get_dht11(opt):
                 except Exception as e:
                         dprint("failed to get data from dht11")
                         return None
+                time.sleep(3);
         return (dht11str);
 
 
@@ -474,7 +475,7 @@ def Send2MQTT(armqtt, sns):
 # main
 ###
 #
-
+# XXX todo
 def usage():
     sys.stderr.write("usage: mqttc -vh\n");
     sys.exit(64);
