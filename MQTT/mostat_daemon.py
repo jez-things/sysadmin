@@ -352,7 +352,7 @@ def mqtt_sub_all(mos):
     mqtt_sub(mos, "/environment/humidity/#");
 
 
-def mqtt_recvloop(mos, timeout=2):
+def mqtt_recvloop(mos, tm=2):
     global ACC, MyIO;
     mos.on_message = on_message;
     DOLOOP = True;
@@ -360,7 +360,7 @@ def mqtt_recvloop(mos, timeout=2):
     while DOLOOP:
         mos.on_message = on_message;
         try:
-            mos.loop(timeout=1);
+            mos.loop(timeout=tm);
         except KeyboardInterrupt:
             MyIO.logmsg("!> Interrupted via keyboard in mqtt_recvloop()");
             DOLOOP=False
@@ -369,7 +369,7 @@ def mqtt_recvloop(mos, timeout=2):
             MyIO.logmsg("Error occured: %s" %(str(e)));
             DOLOOP=False
         else:
-            if MyIO.DEBUG and n >= 0:
+            if MyIO.DEBUG and n <= 0:
                 n = 1000;
                 print(ACC);
         n-=1;
