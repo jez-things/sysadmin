@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 import os,sys,time
 import grp
@@ -20,7 +20,6 @@ import random
 
 import socket
 import subprocess
-import daemon
 
 #from socket import gethostname;
 DEBUG=False
@@ -477,7 +476,7 @@ def Send2MQTT(armqtt, sns):
 #
 # XXX todo
 def usage():
-    sys.stderr.write("usage: mqttc -vh\n");
+    sys.stderr.write("usage: mqttc -dDvh -t [timeout]\n");
     sys.exit(64);
 
 
@@ -490,7 +489,7 @@ def main():
     
     timeout=5
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "dDht:v", ["help", "timeout="])
+        opts, args = getopt.getopt(sys.argv[1:], "dDht:v", ["debug", "daemon", "help", "timeout="])
     except getopt.GetoptError as err:
         # print help information and exit:
         usage()
@@ -550,9 +549,5 @@ def main():
     # EOW
     print("=> Statistics: sent %d messages" %(ar_mqtt.totalmsg));
 
-if DoDaemon:
-    with daemon.DaemonContext():
-        main()
-else:
-        main()
+main()
     
