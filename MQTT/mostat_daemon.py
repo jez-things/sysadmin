@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 import os,sys,time
 #import datetime
@@ -18,7 +18,6 @@ import mosquitto
 import sqlite3
 import curses
 
-import daemon
 
 from socket import gethostname;
 from datetime import date,datetime;
@@ -49,7 +48,7 @@ class APPIO:
 
     def __del__(self):
         self.logdebug("Closing connection to syslog");
-        syslog.closelog();
+        #syslog.closelog();
         try:
             os.unlink(self.pidfile)
         except Exception:
@@ -348,9 +347,9 @@ def mqtt_sub_all(mos):
     #mos.subscribe("$SYS/broker/bytes/received", 0);
     #mos.subscribe("$SYS/broker/bytes/sent", 0);
     #mos.subscribe("$SYS/broker/heap/current", 0);
-    mqtt_sub(mos, "environment/temperature/#");
-    mqtt_sub(mos, "environment/light/#");
-    mqtt_sub(mos, "environment/humidity/#");
+    mqtt_sub(mos, "/environment/temperature/#");
+    mqtt_sub(mos, "/environment/light/#");
+    mqtt_sub(mos, "/environment/humidity/#");
 
 
 def mqtt_recvloop(mos, timeout=2):
@@ -382,8 +381,6 @@ def mqtt_recvloop(mos, timeout=2):
 def main():
     global DBH, ACC, MyIO;
 
-    ACC = Accounting()
-    MyIO = APPIO()
     DBH = DBHandler("./mqtt.db");
 
     MyIO.VERBOSE=False
@@ -424,9 +421,10 @@ def main():
     del MyIO
     return 0
 
-if DoDaemon:
-    with daemon.DaemonContext():
-        main()
-else:
-        main()
-    
+
+###################
+# Main
+##
+MyIO = APPIO()
+ACC = Accounting()
+main()
