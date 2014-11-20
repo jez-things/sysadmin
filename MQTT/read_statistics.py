@@ -358,7 +358,7 @@ def ProbeRRD_Graph_light(f_name):
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-10800s', '--step','300', '--width', '500', '--height', '300', '--title', 'Weather - light', DEF, LINE2);
+        ret = rrdtool.graph(graph_f, '--start', 'now-3600s', '--step','300', '--width', '500', '--height', '300', '--title', 'Weather - light', DEF, LINE2);
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
@@ -374,12 +374,12 @@ def ProbeRRD_Graph_light(f_name):
 
 def ProbeRRD_Graph_humidity(f_name):
 
-    DEF='''DEF:mytemp=temperature.rrd:mtemp:AVERAGE'''
-    LINE2='''LINE2:mytemp#FF0000'''
+    DEF='''DEF:myhum=humidity.rrd:hum:AVERAGE'''
+    LINE2='''LINE2:myhum#FF0000'''
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-10800s', '--step','300', '--width', '500', '--height', '300', '--title', 'Weather', DEF, LINE2);
+        ret = rrdtool.graph(graph_f, '--start', 'now-10800s', '--step','300', '--width', '500', '--height', '300', '--title', 'Humidity %', '--vertical-label', '%', DEF, LINE2);
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
@@ -399,7 +399,7 @@ def get_db_row(db_conn_h, t_name, db_cond):
     try:
         row = db_conn_h.execute(query);
     except Exception as e:
-        print("!> Failed to fetch rows from db:%s" % (e));
+        print("!> Failed to fetch rows from %s:%s" % (t_name, e));
     return (row);
 
 
