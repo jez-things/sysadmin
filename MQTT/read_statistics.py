@@ -53,6 +53,12 @@ class ProbeDateTime:
         self.timdat_fmt = fmt;
         self.timdat_str = time.strftime(fmt, self.timdat);
         return (self.timdat_str);
+    def now(self):
+        tm = time.localtime(time.time())
+        return (time.strftime(self.timdat_fmt, tm));
+
+def timenow():
+    return (ProbeDateTime(time.time(), "%x %X %z"));
 
 def epoch2str(estr, fmt=None):
     return (ProbeDateTime(int(estr), fmt))
@@ -240,18 +246,17 @@ class LightSensor(ProbeSet):
     LP_db_rows=0;
     LP_DEBUG=False;
 
-    def __init__(self, sensor_lst):
+    def __init__(self, sensor_lst, Ldebug=False):
         self.LP_sensors = ProbeSet("LIGHT", sensor_lst, debug=False);
         self.LP_cnt = 0;
         self.LP_db_rows=0;
-        #self.LP_DEBUG=debug;
+        self.LP_DEBUG=Ldebug;
 
     def add_probe(self, light, epocht, s_name):
         """
             Add entry
             returns probe
         """
-
         Lsensor = self.LP_sensors.add_sensor(s_name, SimpleProbe(light, epocht));
         self.LP_cnt+=1
         return (Lsensor);
@@ -288,24 +293,27 @@ def AskUser(question):
             sys.stdout.write('Please respond with \'y\' or \'n\'.\n')
 
 def ProbeRRD_Create_temp(g_path, rrddef=None, rrdrra=None):
-    DS_str = '''DS:mtemp:GAUGE:600:U:50'''
-    RRA_avg_str = '''RRA:AVERAGE:0.5:1:24'''
+    DS_str = '''DS:mtemp:GAUGE:600:U:U'''
+    RRA_avg_str = '''RRA:AVERAGE:0.5:1:240'''
     RRA_max_str = '''RRA:MAX:0.5:1:228'''
-    rrdh = rrdtool.create(g_path, '--start', 'now-1d', '--step','60', DS_str, RRA_avg_str, RRA_max_str);
+    RRA_min_str = '''RRA:MIN:0.5:1:228'''
+    rrdh = rrdtool.create(g_path, '--start', '1416510706', '--step','300', DS_str, RRA_avg_str, RRA_max_str, RRA_min_str);
     return (rrdh);
 
 def ProbeRRD_Create_light(g_path, rrddef=None, rrdrra=None):
-    DS_str = '''DS:light:GAUGE:600:U:50'''
-    RRA_avg_str = '''RRA:AVERAGE:0.5:1:24'''
+    DS_str = '''DS:light:GAUGE:600:U:U'''
+    RRA_avg_str = '''RRA:AVERAGE:0.5:1:220'''
     RRA_max_str = '''RRA:MAX:0.5:1:228'''
-    rrdh = rrdtool.create(g_path, '--start', 'now-10800s', '--step','60', DS_str, RRA_avg_str, RRA_max_str);
+    RRA_min_str = '''RRA:MIN:0.5:1:228'''
+    rrdh = rrdtool.create(g_path, '--start', '1416510706', '--step','300', DS_str, RRA_avg_str, RRA_max_str, RRA_min_str);
     return (rrdh);
 
 def ProbeRRD_Create_hum(g_path, rrddef=None, rrdrra=None):
-    DS_str = '''DS:hum:GAUGE:600:U:50'''
-    RRA_avg_str = '''RRA:AVERAGE:0.5:1:24'''
+    DS_str = '''DS:hum:GAUGE:600:U:U'''
+    RRA_avg_str = '''RRA:AVERAGE:0.5:1:200'''
     RRA_max_str = '''RRA:MAX:0.5:1:228'''
-    rrdh = rrdtool.create(g_path, '--start', 'now-1d', '--step','60', DS_str, RRA_avg_str, RRA_max_str);
+    RRA_min_str = '''RRA:MIN:0.5:1:228'''
+    rrdh = rrdtool.create(g_path, '--start', '1416510706', '--step','300', DS_str, RRA_avg_str, RRA_max_str, RRA_min_str);
     return (rrdh);
 
 def ProbeRRD_Update(g_path, SP):
@@ -329,12 +337,41 @@ def ProbeRRD_Update(g_path, SP):
     return (ret);
 
 def ProbeRRD_Graph_temp(f_name):
-    DEF='''DEF:mytemp=temperature.rrd:mtemp:AVERAGE'''
-    LINE2='''LINE2:mytemp#00FFFF'''
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-1h', '--step','10', '--width', '600', '--height', '300', '--title', 'Temperature - inside', '--vertical-label', 'C', '--color=BACK#696969', '--color=CANVAS#696969', '--grid-dash', '1:3', '-E', '--graph-render-mode', 'normal', '-W', 'mar nov 18 22:10:05 CET 2014', '--font','TITLE:13:Times' ,"--color=SHADEB#9999CC", DEF, LINE2);
+        ret = rrdtool.graph(graph_f, \
+            '--start', '1416510706', '--end', 'now' , '--step','60', \
+            '--width', '650', '--height', '180', '--title', 'Temperature - inside', \
+            '--vertical-label', 'C', \
+            '--grid-dash', '2:1',\
+            '--border', '0', \
+            '-E', '--graph-render-mode', 'normal', \
+            '-W', 'created: %s' %(timenow()), \
+            '--font','TITLE:11:Dorsa', \
+            '--font','AXIS:7:Dorsa', \
+            '--font','UNIT:7:Dorsa', \
+            '--font','LEGEND:8:Dorsa', \
+            "--color=SHADEB#9999CC", \
+            "--color=BACK#D8D8D8", \
+            "--color=FONT#080808", \
+            '--color=CANVAS#202020', \
+            '''DEF:mtemp=temperature.rrd:mtemp:AVERAGE''',\
+            '''VDEF:tempmax=mtemp,MAXIMUM''', \
+            '''VDEF:tempmin=mtemp,MINIMUM''', \
+            '''VDEF:tempavg=mtemp,AVERAGE''', \
+            '''COMMENT:Max\: ''', \
+            '''AREA:mtemp#6633FF''', \
+            '''GPRINT:tempmax:%3.2lfC%s\l''',\
+            '''COMMENT:Min\: ''', \
+            '''LINE2:tempmax#FF3300''', \
+            '''GPRINT:tempmin:%3.2lfC%s\l''',\
+            '''COMMENT:Avg\: ''', \
+            '''GPRINT:tempavg:%3.2lfC%s\l''',\
+            '''TEXTALIGN:right''', \
+            #'''GPRINT:mtemp:MAX:%lf%s\g''',\
+            #'''COMMENT:Temperature measured by DS18B20 '''
+            );
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
@@ -352,13 +389,35 @@ def ProbeRRD_Graph_light(f_name):
     '''
         plotting light
     '''
-    DEF='''DEF:mylight=light.rrd:light:AVERAGE'''
-    LINE2='''LINE2:mylight#FFF000'''
 
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-3600s', '--step','300', '--width', '500', '--height', '300', '--title', 'Weather - light', DEF, LINE2);
+        ret = rrdtool.graph(graph_f, '--start', '1416510706', '--step','300', \
+                '--end', 'now', \
+            '--width', '600', '--height', '200', '--title', 'Light', \
+            '--border', '0', \
+            '--font','TITLE:11:Ubuntu',\
+            '--font','AXIS:7:Ubuntu',\
+            '--font','UNIT:7:Ubuntu',\
+            '--font','LEGEND:9:Ubuntu',\
+            '--color=CANVAS#696969', \
+            '--color=BACK#E8E8E8', \
+            '--color=SHADEA#080808', \
+            '-W', 'created: %s' %(timenow()), \
+            '''DEF:light=light.rrd:light:AVERAGE''', \
+            '''VDEF:lmax=light,MAXIMUM''', \
+            '''VDEF:lmin=light,MINIMUM''', \
+            '''VDEF:lavg=light,AVERAGE''', \
+            '''COMMENT: Max\:''', \
+            '''GPRINT:lmax:%3.0lf\g''',\
+            '''COMMENT: Min\:''', \
+            '''GPRINT:lmin:%3.0lf%s\g''',\
+            '''AREA:light#FFF000''',\
+            '''COMMENT: Avg\:''', \
+            '''GPRINT:lavg:%3.1lf%s\g''',\
+            '''COMMENT: l'''
+            );
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
@@ -374,12 +433,35 @@ def ProbeRRD_Graph_light(f_name):
 
 def ProbeRRD_Graph_humidity(f_name):
 
-    DEF='''DEF:myhum=humidity.rrd:hum:AVERAGE'''
-    LINE2='''LINE2:myhum#FF0000'''
+    
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', 'now-10800s', '--step','300', '--width', '500', '--height', '300', '--title', 'Humidity %', '--vertical-label', '%', DEF, LINE2);
+        ret = rrdtool.graph(graph_f, \
+                '--start', '1416510706', '--end','now','--step','300', \
+                '--width', '500', '--height', '200', \
+                '--title', 'Humidity', '--vertical-label', '%', \
+                '--border', '0', \
+                '-E', \
+                #'-P',\
+                '--color=CANVAS#101010',  \
+                '--color=BACK#D8D8D8',  \
+                #'--color=FONT#696969',  \
+                '--font','TITLE:11:Sans',\
+                '--font','UNIT:8:Sans',\
+                '--font','AXIS:8:Sans',\
+                '--font','LEGEND:8:Sans',\
+                '-W', 'Created: %s' %(timenow()), \
+                '''DEF:hum=humidity.rrd:hum:AVERAGE''',\
+                '''VDEF:hummax=hum,MAXIMUM''', \
+                '''VDEF:hummin=hum,MINIMUM''', \
+                '''COMMENT:Max\:''',\
+                '''GPRINT:hummax:%3.0lf%% %s\l''',\
+                '''COMMENT:Min\:''',\
+                '''GPRINT:hummin:%3.0lf%% \l''',\
+                '''AREA:hum#33FF00''',\
+                #'''COMMENT: <span foreground="blue">heh</span>''',\
+                );
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
         try:
@@ -422,7 +504,7 @@ def read_db(dbpath):
 
     #-----------
     # Temperature
-    #------------
+    #--------------------------------------------------------------------
     Tsensors = TempSensor(['board', 'outside']);
     # First read one dataset
     for row in get_db_row(c, "temperature", '''WHERE sondname="board"'''):
@@ -442,12 +524,12 @@ def read_db(dbpath):
 
     #-------
     # Light
-    #-------
+    #---------------------------------------------------------------
 
     RRD_db = 'light.rrd';
     ProbeRRD_Create_light(RRD_db);
 
-    Lsensors = LightSensor(["general"]);
+    Lsensors = LightSensor(["general"], Ldebug=False);
     for row in get_db_row(c, "light", ''' WHERE desc="general"'''):
         Lsensors.proc_db_row(row);
 
@@ -459,10 +541,8 @@ def read_db(dbpath):
 
     #---------
     # Humidity
-    #--------
+    #------------------------------------------------------------------
     RRD_db = 'humidity.rrd';
-    DEF='''DEF:myhum=humidity.rrd:hum:AVERAGE'''
-    LINE2='''LINE2:myhum#FF0000'''
     ProbeRRD_Create_hum(RRD_db);
     Hsensors = HumiditySensor(["board"], Hdebug=False);
     for row in get_db_row(c, "humidity", ''' WHERE desc="board"'''):
