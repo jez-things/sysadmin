@@ -29,6 +29,9 @@
 #     Fastdir2 = ${MusicDir}/mp3/electronic
 #     Fastdir3 = ${MusicDir}/mp3/rap
 #     Fastdir4 = ${MusicDir}/mp3/etc
+
+
+# MusicDir = /tank_local/documents/music/
 #
 # Variable names are limited to those accepted by the BASH shell; that
 # is, those comprising the upper- and lowercase ASCII characters, digits
@@ -69,7 +72,7 @@ ReadTags = yes
 #
 # Example:    MusicDir = "/home/joe/music"
 #
-MusicDir = /home/jez/
+MusicDir = /storage/Music
 
 # Start in the music directory by default?  If set to 'no', start
 # in the current directory by default.  A single directory on
@@ -77,7 +80,7 @@ MusicDir = /home/jez/
 StartInMusicDir = yes
 
 # How to sort?  FileName is the option's only value for now.
-#Sort = FileName
+Sort = FileName
 
 # Show errors in the streams (for example, broken frames in MP3 files)?
 ShowStreamErrors = yes
@@ -112,7 +115,7 @@ OutputBuffer = 2048                 # Minimum value is 128KB
 # This can't be greater than the value of InputBuffer.  While this has
 # a positive effect for network streams, it also causes the broadcast
 # audio to be delayed.
-Prebuffering = 512
+Prebuffering = 128
 
 # Use this HTTP proxy server for internet streams.  If not set, the
 # environment variables http_proxy and ALL_PROXY will be used if present.
@@ -270,9 +273,9 @@ ASCIILines = yes
 #             Fastdir3 = /mp3/rap
 #             Fastdir4 = /mp3/etc
 #
-#Fastdir1 =
-#Fastdir2 =
-#Fastdir3 =
+Fastdir1 = /home/jez/
+Fastdir2 = /storage/
+Fastdir3 = /storage/hardcore/
 #Fastdir4 =
 #Fastdir5 =
 #Fastdir6 =
