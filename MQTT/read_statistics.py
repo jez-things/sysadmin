@@ -1,4 +1,6 @@
 #!/usr/bin/env /usr/bin/python2.7
+# -*- coding: utf-8 -*-
+
 import os,sys,time
 import grp
 import signal
@@ -341,9 +343,9 @@ def ProbeRRD_Graph_temp(f_name):
     ret = None;
     try:
         ret = rrdtool.graph(graph_f, \
-            '--start', '1416510706', '--end', 'now' , '--step','60', \
+            '--start', 'now-20h', '--end', 'now' , '--step','60', \
             '--width', '650', '--height', '180', '--title', 'Temperature - inside', \
-            '--vertical-label', 'C', \
+            '--vertical-label', '°C', \
             '--grid-dash', '2:1',\
             '--border', '0', \
             '-E', '--graph-render-mode', 'normal', \
@@ -360,14 +362,17 @@ def ProbeRRD_Graph_temp(f_name):
             '''VDEF:tempmax=mtemp,MAXIMUM''', \
             '''VDEF:tempmin=mtemp,MINIMUM''', \
             '''VDEF:tempavg=mtemp,AVERAGE''', \
+            '''VDEF:templst=mtemp,LAST''', \
             '''COMMENT:Max\: ''', \
             '''AREA:mtemp#6633FF''', \
-            '''GPRINT:tempmax:%3.2lfC%s\l''',\
+            '''GPRINT:tempmax:%3.2lf°C%s\l''',\
             '''COMMENT:Min\: ''', \
             '''LINE2:tempmax#FF3300''', \
-            '''GPRINT:tempmin:%3.2lfC%s\l''',\
+            '''GPRINT:tempmin:%3.2lf°C%s\l''',\
             '''COMMENT:Avg\: ''', \
-            '''GPRINT:tempavg:%3.2lfC%s\l''',\
+            '''GPRINT:tempavg:%3.2lf°C%s\l''',\
+            '''COMMENT:Last\: ''', \
+            '''GPRINT:templst:%3.2lf°C%s\l''',\
             '''TEXTALIGN:right''', \
             #'''GPRINT:mtemp:MAX:%lf%s\g''',\
             #'''COMMENT:Temperature measured by DS18B20 '''
@@ -393,7 +398,7 @@ def ProbeRRD_Graph_light(f_name):
     graph_f=(f_name[:-3]+"png");
     ret = None;
     try:
-        ret = rrdtool.graph(graph_f, '--start', '1416510706', '--step','300', \
+        ret = rrdtool.graph(graph_f, '--start', 'now-20h', '--step','300', \
                 '--end', 'now', \
             '--width', '600', '--height', '200', '--title', 'Light', \
             '--border', '0', \
@@ -409,14 +414,18 @@ def ProbeRRD_Graph_light(f_name):
             '''VDEF:lmax=light,MAXIMUM''', \
             '''VDEF:lmin=light,MINIMUM''', \
             '''VDEF:lavg=light,AVERAGE''', \
+            '''VDEF:llst=light,LAST''', \
             '''COMMENT: Max\:''', \
-            '''GPRINT:lmax:%3.0lf\g''',\
+            '''GPRINT:lmax:%3.0lf\l''',\
             '''COMMENT: Min\:''', \
-            '''GPRINT:lmin:%3.0lf%s\g''',\
+            '''GPRINT:lmin:%3.0lf%s\l''',\
             '''AREA:light#FFF000''',\
             '''COMMENT: Avg\:''', \
-            '''GPRINT:lavg:%3.1lf%s\g''',\
-            '''COMMENT: l'''
+            '''GPRINT:lavg:%3.1lf%s\l''',\
+            '''COMMENT: Last\:''', \
+            '''GPRINT:llst:%3.1lf%s\l''',\
+            '''TEXTALIGN:right''', \
+            '''COMMENT: Light intensivity!'''
             );
     except Exception as e:
         print("=!> Failed to graph \"%s\":%s" %(graph_f, e));
@@ -438,7 +447,7 @@ def ProbeRRD_Graph_humidity(f_name):
     ret = None;
     try:
         ret = rrdtool.graph(graph_f, \
-                '--start', '1416510706', '--end','now','--step','300', \
+                '--start', 'now-20h', '--end','now','--step','300', \
                 '--width', '500', '--height', '200', \
                 '--title', 'Humidity', '--vertical-label', '%', \
                 '--border', '0', \
@@ -455,10 +464,13 @@ def ProbeRRD_Graph_humidity(f_name):
                 '''DEF:hum=humidity.rrd:hum:AVERAGE''',\
                 '''VDEF:hummax=hum,MAXIMUM''', \
                 '''VDEF:hummin=hum,MINIMUM''', \
+                '''VDEF:humlst=hum,LAST''', \
                 '''COMMENT:Max\:''',\
                 '''GPRINT:hummax:%3.0lf%% %s\l''',\
                 '''COMMENT:Min\:''',\
                 '''GPRINT:hummin:%3.0lf%% \l''',\
+                '''COMMENT:Last\:''',\
+                '''GPRINT:humlst:%3.0lf%% \l''',\
                 '''AREA:hum#33FF00''',\
                 #'''COMMENT: <span foreground="blue">heh</span>''',\
                 );
